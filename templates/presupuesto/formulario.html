@@ -1,0 +1,72 @@
+{# ==========================================================================
+   FORMULARIO DE PRESUPUESTO (Nuevo / Editar)
+   Solo visible para administradores.
+   Incluye campo de imagen (URL o ruta).
+   ========================================================================== #}
+
+{% extends "base/layout.html" %}
+{% block title %}{{ 'Editar' if presupuesto else 'Nuevo' }} proyecto{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <header class="form-header">
+        <h1>{{ 'Editar' if presupuesto else 'Nuevo' }} Proyecto Presupuestario</h1>
+    </header>
+
+    <div class="card">
+        <form method="POST" class="presupuesto-form" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label for="concepto">Título del proyecto *</label>
+                <input type="text" id="concepto" name="concepto" required
+                       value="{{ presupuesto.concepto if presupuesto else request.form.get('concepto', '') }}"
+                       placeholder="Ej: Renovación de laboratorios">
+            </div>
+
+            <div class="form-group">
+                <label for="imagen_url">URL de imagen</label>
+                <input type="text" id="imagen_url" name="imagen_url"
+                       value="{{ presupuesto.imagen_url if presupuesto else request.form.get('imagen_url', '') }}"
+                       placeholder="https://ejemplo.com/imagen.jpg o img/proyecto.jpg">
+                <small>Puedes usar una URL externa o una ruta como img/proyecto.jpg</small>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="monto">Monto *</label>
+                    <input type="number" id="monto" name="monto" required step="0.01" min="0"
+                           value="{{ presupuesto.monto if presupuesto else request.form.get('monto', '') }}"
+                           placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label for="categoria">Categoría *</label>
+                    <select id="categoria" name="categoria" required>
+                        <option value="">Seleccionar...</option>
+                        {% for cat in categorias %}
+                        <option value="{{ cat }}" {% if (presupuesto and presupuesto.categoria == cat) or request.form.get('categoria') == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="fecha">Fecha *</label>
+                <input type="date" id="fecha" name="fecha" required
+                       value="{{ presupuesto.fecha.strftime('%Y-%m-%d') if presupuesto else request.form.get('fecha', '') }}">
+            </div>
+
+            <div class="form-group">
+                <label for="descripcion">Resumen breve del proyecto</label>
+                <textarea id="descripcion" name="descripcion" rows="4"
+                          placeholder="Breve descripción del proyecto...">{{ presupuesto.descripcion if presupuesto else request.form.get('descripcion', '') }}</textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary">Guardar</button>
+                <a href="{{ url_for('presupuestos_lista') }}" class="btn btn--secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{# ==========================================================================
+   PÁGINA DE PRESUPUESTOS (Proyectos)
+   Cuadrícula (grid) de tarjetas (cards).
+   - Si ADMIN: botones Agregar y Editar visibles
+   - Si VISITANTE: solo lectura
+   ========================================================================== #}
+
+{% extends "base/layout.html" %}
+{% block title %}Presupuestos{% endblock %}
+
+{% block content %}
+<div class="presupuestos-page">
+    <!-- Encabezado de la sección -->
+    <header class="presupuestos-header">
+        <h1 class="presupuestos__title">Proyectos Presupuestarios</h1>
+        <p class="presupuestos__subtitle">Consulta transparente de los recursos y su destino</p>
+
+        {# Solo administradores ven los botones Agregar / Editar #}
+        {% if current_user.is_authenticated and current_user.es_administrador %}
+        <div class="presupuestos__actions">
+            <a href="{{ url_for('presupuesto_nuevo') }}" class="btn btn--primary">
+                <i class="fas fa-plus"></i> Agregar Proyecto
+            </a>
+        </div>
+        {% endif %}
+    </header>
+
+    {# Filtros opcionales (categoría, año) #}
+    <div class="presupuestos-filtros card">
+        <form method="GET" class="filtros-form">
+            <div class="filtro-group">
+                <label for="categoria">Categoría</label>
+                <select name="categoria" id="categoria">
+                    <option value="">Todas</option>
+                    {% for cat in categorias %}
+                    <option value="{{ cat }}" {% if request.args.get('categoria') == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filtro-group">
+                <label for="anio">Año</label>
+                <input type="number" name="anio" id="anio" placeholder="2025" value="{{ request.args.get('anio', '') }}" min="2020" max="2030">
+            </div>
+            <button type="submit" class="btn btn--secondary">Filtrar</button>
+        </form>
+    </div>
+
+    {# Cuadrícula de tarjetas (cards) #}
+    <div class="presupuestos-grid">
+        {% if presupuestos %}
+            {% for p in presupuestos %}
+            <a href="{{ url_for('presupuesto_detalle', id=p.id) }}" class="project-card" aria-label="Ver proyecto {{ p.concepto }}">
+                {# Imagen del proyecto con bordes redondeados #}
+                <div class="project-card__image">
+                    {% if p.imagen_url %}
+                    <img src="{{ p.imagen_url if p.imagen_url.startswith('http') else url_for('static', filename=p.imagen_url) }}" alt="{{ p.concepto }}">
+                    {% else %}
+                    <div class="project-card__placeholder">
+                        <i class="fas fa-image"></i>
+                        <span>Sin imagen</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {# Fecha de creación en texto pequeño #}
+                <p class="project-card__date">{{ p.fecha.strftime('%d/%m/%Y') }}</p>
+                {# Título llamativo #}
+                <h3 class="project-card__title">{{ p.concepto }}</h3>
+                {# Breve resumen #}
+                <p class="project-card__summary">{{ (p.descripcion[:120] + '...') if p.descripcion and p.descripcion|length > 120 else (p.descripcion or 'Sin descripción') }}</p>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="presupuestos-empty">
+                <p>No hay proyectos para mostrar.</p>
+                {% if current_user.is_authenticated and current_user.es_administrador %}
+                <a href="{{ url_for('presupuesto_nuevo') }}" class="btn btn--primary">Crear el primero</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

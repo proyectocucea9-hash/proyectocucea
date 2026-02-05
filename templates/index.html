@@ -1,0 +1,155 @@
+{# ==========================================================================
+   PÁGINA DE INICIO (INDEX) - 4 FRANJAS
+   1. Presentación: 2 columnas (descripción izquierda | carrusel imágenes derecha)
+   2. Ubicación: Mapa Google Maps centrado
+   3. Carrusel de Cards: Tarjetas de presupuesto con flechas (click → Modal)
+   4. Footer: Contacto + redes (en layout)
+   Fondo: Parallax (imagen fija al hacer scroll)
+   ========================================================================== #}
+
+{% extends "base/layout.html" %}
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+<!-- Fondo Parallax: imagen fija, las franjas se deslizan sobre ella -->
+<div class="page-background" role="img" aria-label="Fondo institucional CUCEA"></div>
+
+<div class="page-overlay">
+    {# =====================================================================
+       FRANJA 1 - PRESENTACIÓN (2 columnas)
+       Izquierda: Descripción/historia de la escuela
+       Derecha: Carrusel de imágenes (ajustado estrictamente a ese espacio)
+       ===================================================================== #}
+    <section class="franja franja--presentacion" id="franja-1">
+        <div class="franja__container franja__container--two-cols">
+            <div class="franja-1__descripcion">
+                <h1 class="franja-1__title">Transparencia Presupuestaria</h1>
+                <p class="franja-1__subtitle">Centro Universitario de Ciencias Económico Administrativas</p>
+                <p class="franja-1__text">
+                    El CUCEA es una de las divisiones más importantes de la Universidad de Guadalajara,
+                    dedicada a la formación de profesionales en áreas económicas y administrativas.
+                </p>
+                <p class="franja-1__text">
+                    En cumplimiento con los principios de transparencia y rendición de cuentas,
+                    ponemos a disposición del público esta plataforma donde puedes consultar
+                    de manera clara y accesible cómo se invierten los recursos de nuestra institución.
+                </p>
+                <a href="{{ url_for('presupuestos_lista') }}" class="btn btn--primary">Ver Presupuestos</a>
+            </div>
+            <div class="franja-1__carousel">
+                <div class="carousel-intro" aria-label="Carrusel de imágenes institucionales">
+                    <div class="carousel-intro__track">
+                        <div class="carousel-intro__slide carousel-intro__slide--active" data-slide="0">
+                            <img src="https://images.unsplash.com/photo-1562774053-701939374585?w=800&h=500&fit=crop" alt="Campus">
+                        </div>
+                        <div class="carousel-intro__slide" data-slide="1">
+                            <img src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&h=500&fit=crop" alt="Estudiantes">
+                        </div>
+                        <div class="carousel-intro__slide" data-slide="2">
+                            <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&h=500&fit=crop" alt="Biblioteca">
+                        </div>
+                    </div>
+                    <div class="carousel-intro__indicators">
+                        <button class="carousel-intro__dot carousel-intro__dot--active" data-slide="0"></button>
+                        <button class="carousel-intro__dot" data-slide="1"></button>
+                        <button class="carousel-intro__dot" data-slide="2"></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# =====================================================================
+       FRANJA 2 - UBICACIÓN (Mapa Google Maps)
+       Contenedor centrado y elegante, no todo el ancho
+       ===================================================================== #}
+    <section class="franja franja--ubicacion" id="franja-2">
+        <div class="franja__container franja__container--mapa">
+            <h2 class="franja__title">Nuestra Ubicación</h2>
+            <p class="franja__subtitle">{{ map_address }}</p>
+            <div class="mapa-container">
+                <iframe
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3732.7451607433175!2d-103.38259468456889!3d20.70710108619151!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8428ae4a3fe74e85%3A0x1b5d96e41d202c05!2sCUCEA%20UdeG!5e0!3m2!1ses!2smx!4v1707180000000!5m2!1ses!2smx"
+                    width="100%" height="350" style="border:0; border-radius: 12px;"
+                    allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade">
+                </iframe>
+            </div>
+        </div>
+    </section>
+
+    {# =====================================================================
+       FRANJA 3 - CARRUSEL DE CARDS (Tarjetas de presupuesto)
+       Carrusel horizontal con flechas. Click en card → Modal Bootstrap
+       ===================================================================== #}
+    <section class="franja franja--cards" id="franja-3">
+        <div class="franja__container">
+            <h2 class="franja__title">Proyectos Presupuestarios</h2>
+            <p class="franja__subtitle">Consulta transparente de los recursos y su destino</p>
+
+            <div class="cards-carousel-wrapper">
+                <!-- Flecha izquierda -->
+                <button class="cards-carousel__arrow cards-carousel__arrow--prev" id="cards-prev" aria-label="Anterior">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+
+                <!-- Contenedor de las cards con scroll horizontal -->
+                <div class="cards-carousel" id="cards-carousel">
+                    <div class="cards-carousel__track" id="cards-track">
+                        {% if presupuestos %}
+                            {% for p in presupuestos %}
+                            <div class="card-budget" data-id="{{ p.id }}" data-bs-toggle="modal" data-bs-target="#detalleModal" role="button" tabindex="0">
+                                <div class="card-budget__image">
+                                    {% if p.imagen_url %}
+                                    <img src="{{ p.imagen_url if p.imagen_url.startswith('http') else url_for('static', filename=p.imagen_url) }}" alt="{{ p.concepto }}">
+                                    {% else %}
+                                    <div class="card-budget__placeholder"><i class="fas fa-image"></i><span>Sin imagen</span></div>
+                                    {% endif %}
+                                </div>
+                                <p class="card-budget__date">{{ p.fecha.strftime('%d/%m/%Y') }}</p>
+                                <h3 class="card-budget__title">{{ p.concepto }}</h3>
+                                <p class="card-budget__summary">{{ (p.descripcion[:80] + '...') if p.descripcion and p.descripcion|length > 80 else (p.descripcion or 'Sin descripción') }}</p>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="cards-carousel__empty">
+                                <p>No hay proyectos para mostrar.</p>
+                                <a href="{{ url_for('presupuestos_lista') }}" class="btn btn--primary">Ver presupuestos</a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Flecha derecha -->
+                <button class="cards-carousel__arrow cards-carousel__arrow--next" id="cards-next" aria-label="Siguiente">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <div class="franja-3__link">
+                <a href="{{ url_for('presupuestos_lista') }}" class="btn btn--secondary">Ver todos los presupuestos</a>
+            </div>
+        </div>
+    </section>
+</div>
+
+{# =====================================================================
+   MODAL BOOTSTRAP - Vacío, preparado para mostrar detalle del proyecto
+   Se dispara al hacer click en una card. Se llenará dinámicamente con JS.
+   ===================================================================== #}
+<div class="modal fade" id="detalleModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalleModalLabel">Detalle del Proyecto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Contenido vacío - se llenará dinámicamente al cargar detalle -->
+                <div id="modal-content-placeholder">
+                    <p class="text-muted">Cargando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1168 @@
+/*
+==============================================================================
+PLATAFORMA DE TRANSPARENCIA PRESUPUESTARIA - CUCEA
+Estilos principales - Diseño minimalista, corporativo y limpio
+==============================================================================
+
+Variables CSS: colores, sombras y dimensiones reutilizables
+*/
+
+:root {
+    --color-primary: #1a365d;
+    --color-primary-light: #2c5282;
+    --color-primary-hover: #2d4a7c;
+    --color-text: #2d3748;
+    --color-text-muted: #718096;
+    --color-bg: #f8fafc;
+    --color-card: #ffffff;
+    --color-border: #e2e8f0;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --navbar-height: 80px;       /* Estado inicial: más alto (aire) */
+    --navbar-height-scrolled: 60px; /* Estado scroll: más compacto */
+    --font-main: 'Montserrat', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Reset y base - Tipografía Montserrat */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-main);
+    background: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* =============================================================================
+   NAVBAR - Logo y botones centrados y repartidos
+   Estado inicial: más padding (aire). Al scroll: compacta.
+   Transición suave: transition: all 0.3s ease;
+   ============================================================================= */
+.navbar {
+    background: var(--color-card);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow);
+    /* Transición para cambio suave de tamaño al hacer scroll */
+    transition: all 0.3s ease;
+}
+
+.navbar--sticky {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+/* Estado compacto al hacer scroll - clase añadida por JS */
+.navbar.navbar--scrolled .navbar__container {
+    height: var(--navbar-height-scrolled);
+}
+
+.navbar.navbar--scrolled .navbar__logo {
+    font-size: 1.2rem;
+}
+
+.navbar.navbar--scrolled .navbar__subtitle {
+    font-size: 0.6rem;
+}
+
+.navbar__container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    height: var(--navbar-height);
+    max-width: 1200px;
+    margin: 0 auto;
+    transition: all 0.3s ease;
+}
+
+/* Logo centrado a la izquierda del espacio */
+.navbar__brand {
+    text-decoration: none;
+    color: var(--color-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar__logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    transition: font-size 0.3s ease;
+}
+
+.navbar__subtitle {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    transition: font-size 0.3s ease;
+}
+
+/* Enlaces centrados y repartidos - Padding generoso para aspecto profesional */
+.navbar__menu {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.navbar__link {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+    /* Padding generoso para botones más grandes y profesionales */
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+.navbar__link:hover {
+    background: var(--color-bg);
+    color: var(--color-primary);
+}
+
+.navbar__link--admin {
+    color: #38a169;
+}
+
+.navbar__link--admin:hover {
+    background: #f0fff4;
+    color: #2f855a;
+}
+
+.navbar__link--cta {
+    background: var(--color-primary);
+    color: white !important;
+}
+
+.navbar__link--cta:hover {
+    background: var(--color-primary-light) !important;
+    color: white !important;
+}
+
+.navbar__link--logout {
+    color: var(--color-text-muted);
+}
+
+.navbar__user {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    padding: 0 0.5rem;
+}
+
+/* Botón hamburguesa - Solo visible en móvil */
+.navbar__toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+.navbar__toggle span {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--color-text);
+    margin: 5px 0;
+}
+
+/* =============================================================================
+   MAIN CONTENT - Contenido principal sin sidebar
+   ============================================================================= */
+.main-content {
+    flex: 1;
+    padding: 0;
+    min-height: 100vh;
+}
+
+/* =============================================================================
+   FLASH MESSAGES - Mensajes de éxito, error, info
+   ============================================================================= */
+.flash-messages {
+    margin-bottom: 1.5rem;
+}
+
+.alert {
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.alert-success {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+.alert-error, .alert-danger {
+    background: #fed7d7;
+    color: #c53030;
+}
+
+.alert-info {
+    background: #bee3f8;
+    color: #2b6cb0;
+}
+
+/* =============================================================================
+   INDEX - Fondo Parallax y capa de contenido
+   Imagen fija (parallax): las franjas se deslizan sobre ella
+   ============================================================================= */
+
+.page-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('https://images.unsplash.com/photo-1562774053-701939374585?w=1920&h=1080&fit=crop');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed; /* Parallax: fija al hacer scroll */
+    z-index: -1;
+    opacity: 0.4;
+}
+
+.page-overlay {
+    position: relative;
+    z-index: 1;
+}
+
+/* =============================================================================
+   FRANJAS - Estructura común para las 4 secciones
+   ============================================================================= */
+.franja {
+    padding: 4rem 2rem;
+}
+
+.franja__container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.franja__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.75rem;
+    color: var(--color-primary);
+    text-align: center;
+}
+
+.franja__subtitle {
+    margin: 0 0 2rem;
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+/* FRANJA 1 - Presentación: 2 columnas */
+.franja--presentacion {
+    padding-top: 2rem;
+}
+
+.franja__container--two-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: center;
+}
+
+.franja-1__descripcion {
+    background: var(--color-card);
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow-hover);
+}
+
+.franja-1__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.75rem;
+    color: var(--color-primary);
+}
+
+.franja-1__subtitle {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    color: var(--color-text-muted);
+}
+
+.franja-1__text {
+    margin: 0 0 1rem;
+    line-height: 1.7;
+}
+
+/* Carrusel de imágenes - Franja 1, columna derecha (ajustado estrictamente) */
+.franja-1__carousel {
+    width: 100%;
+}
+
+.carousel-intro {
+    position: relative;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-hover);
+}
+
+.carousel-intro__track {
+    position: relative;
+    width: 100%;
+    height: 320px;
+}
+
+.carousel-intro__slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.6s ease-in-out;
+}
+
+.carousel-intro__slide--active {
+    opacity: 1;
+    z-index: 1;
+}
+
+.carousel-intro__slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.carousel-intro__indicators {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
+    z-index: 2;
+}
+
+.carousel-intro__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.carousel-intro__dot--active {
+    background: white;
+}
+
+/* FRANJA 2 - Ubicación: Mapa centrado y elegante */
+.franja--ubicacion {
+    padding: 3rem 2rem;
+}
+
+.franja__container--mapa {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.mapa-container {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-hover);
+}
+
+.mapa-container iframe {
+    width: 100%;
+}
+
+/* FRANJA 3 - Carrusel de Cards */
+.franja--cards {
+    padding: 3rem 2rem;
+}
+
+.cards-carousel-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.cards-carousel__arrow {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid var(--color-primary);
+    background: var(--color-card);
+    color: var(--color-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.cards-carousel__arrow:hover {
+    background: var(--color-primary);
+    color: white;
+}
+
+.cards-carousel {
+    flex: 1;
+    overflow: hidden;
+}
+
+.cards-carousel__track {
+    display: flex;
+    gap: 1.5rem;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0.5rem 0;
+}
+
+.cards-carousel__track::-webkit-scrollbar {
+    display: none;
+}
+
+/* Card individual en el carrusel */
+.card-budget {
+    flex: 0 0 300px;
+    background: var(--color-card);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: box-shadow 0.3s, transform 0.3s;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-budget:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-4px);
+}
+
+.card-budget__image {
+    width: 100%;
+    height: 180px;
+    overflow: hidden;
+}
+
+.card-budget__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-budget__placeholder {
+    width: 100%;
+    height: 100%;
+    background: #edf2f7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+
+.card-budget__placeholder i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-budget__date {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin: 0.75rem 1rem 0;
+}
+
+.card-budget__title {
+    margin: 0 1rem 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    line-height: 1.3;
+}
+
+.card-budget__summary {
+    margin: 0 1rem 1rem;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    flex: 1;
+}
+
+.cards-carousel__empty {
+    flex: 1;
+    text-align: center;
+    padding: 3rem;
+    color: var(--color-text-muted);
+}
+
+.franja-3__link {
+    text-align: center;
+}
+
+/* =============================================================================
+   CARRUSEL LEGACY - Mantener por compatibilidad con otras páginas
+   ============================================================================= */
+.carousel {
+    position: relative;
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto 2rem;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-hover);
+}
+
+.carousel__track {
+    position: relative;
+    width: 100%;
+    height: 400px;
+}
+
+.carousel__slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.6s ease-in-out;
+}
+
+.carousel__slide--active {
+    opacity: 1;
+    z-index: 1;
+}
+
+.carousel__slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Indicadores del carrusel (puntos) */
+.carousel__indicators {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 0.5rem;
+    z-index: 2;
+}
+
+.carousel__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid white;
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.3s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.carousel__dot:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.carousel__dot--active {
+    background: white;
+}
+
+/* =============================================================================
+   INTRO SECTION - Contenido informativo con CTA
+   ============================================================================= */
+.intro-section {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.intro-card {
+    background: var(--color-card);
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow-hover);
+}
+
+.intro__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.75rem;
+    color: var(--color-primary);
+}
+
+.intro__subtitle {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    color: var(--color-text-muted);
+}
+
+.intro__text {
+    margin: 0 0 1.5rem;
+    color: var(--color-text);
+    line-height: 1.7;
+}
+
+/* =============================================================================
+   BOTONES
+   ============================================================================= */
+.btn {
+    display: inline-block;
+    padding: 0.6rem 1.25rem;
+    border-radius: 6px;
+    font-weight: 500;
+    font-family: var(--font-main);
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    font-size: 0.95rem;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.btn--primary {
+    background: var(--color-primary);
+    color: white;
+}
+
+.btn--primary:hover {
+    background: var(--color-primary-light);
+}
+
+.btn--secondary {
+    background: var(--color-border);
+    color: var(--color-text);
+}
+
+.btn--secondary:hover {
+    background: #cbd5e0;
+}
+
+.btn--danger {
+    background: #c53030;
+    color: white;
+}
+
+.btn--danger:hover {
+    background: #9b2c2c;
+}
+
+.btn-block {
+    width: 100%;
+    text-align: center;
+}
+
+/* =============================================================================
+   PRESUPUESTOS - Grid de tarjetas
+   ============================================================================= */
+.presupuestos-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.presupuestos-header {
+    margin-bottom: 2rem;
+}
+
+.presupuestos__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.75rem;
+    color: var(--color-primary);
+}
+
+.presupuestos__subtitle {
+    margin: 0 0 1rem;
+    color: var(--color-text-muted);
+}
+
+.presupuestos__actions {
+    margin-top: 1rem;
+}
+
+/* Filtros */
+.presupuestos-filtros {
+    margin-bottom: 2rem;
+}
+
+.filtros-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.filtro-group label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.filtro-group select,
+.filtro-group input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+}
+
+/* Cuadrícula de cards */
+.presupuestos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Tarjeta de proyecto - Clickeable, imagen, fecha, título, resumen */
+.project-card {
+    background: var(--color-card);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.project-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+}
+
+.project-card__image {
+    width: 100%;
+    height: 180px;
+    overflow: hidden;
+}
+
+.project-card__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px 12px 0 0;
+}
+
+.project-card__placeholder {
+    width: 100%;
+    height: 100%;
+    background: #edf2f7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+
+.project-card__placeholder i {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.project-card__date {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin: 0.75rem 1rem 0;
+}
+
+.project-card__title {
+    margin: 0 1rem 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    line-height: 1.4;
+}
+
+.project-card__summary {
+    margin: 0 1rem 1rem;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    flex: 1;
+}
+
+.presupuestos-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 3rem;
+    color: var(--color-text-muted);
+}
+
+.presupuestos-empty a {
+    margin-top: 1rem;
+}
+
+/* =============================================================================
+   DETALLE DE PRESUPUESTO
+   ============================================================================= */
+.detalle-page {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.detalle-card__image {
+    width: 100%;
+    height: 350px;
+    overflow: hidden;
+    border-radius: 12px 12px 0 0;
+}
+
+.detalle-card__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detalle-card__placeholder {
+    width: 100%;
+    height: 100%;
+    background: #edf2f7;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-text-muted);
+}
+
+.detalle-card__body {
+    padding: 2rem;
+}
+
+.detalle-card__date {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin: 0 0 0.5rem;
+}
+
+.detalle-card__title {
+    margin: 0 0 0.75rem;
+    font-size: 1.5rem;
+    color: var(--color-primary);
+}
+
+.detalle-card__badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: #edf2f7;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.detalle-card__monto {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin: 0 0 1rem;
+}
+
+.detalle-card__descripcion {
+    margin: 0 0 1.5rem;
+    line-height: 1.7;
+}
+
+.detalle-card__actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.form-inline {
+    display: inline;
+}
+
+/* =============================================================================
+   FORMULARIO - Nuevo / Editar proyecto
+   ============================================================================= */
+.form-page {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.form-header h1 {
+    margin: 0 0 1.5rem;
+    font-size: 1.5rem;
+    color: var(--color-primary);
+}
+
+.presupuesto-form .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.presupuesto-form label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+}
+
+.presupuesto-form input,
+.presupuesto-form select,
+.presupuesto-form textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+}
+
+.presupuesto-form input:focus,
+.presupuesto-form select:focus,
+.presupuesto-form textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.presupuesto-form small {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+/* =============================================================================
+   CARD - Tarjeta genérica
+   ============================================================================= */
+.card {
+    background: var(--color-card);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+}
+
+/* =============================================================================
+   AUTH - Login y registro
+   ============================================================================= */
+.auth-container {
+    max-width: 420px;
+    margin: 2rem auto;
+}
+
+.auth-card {
+    background: var(--color-card);
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow-hover);
+}
+
+.auth-card h1 {
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+    color: var(--color-primary);
+}
+
+.auth-hint {
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1.5rem;
+}
+
+.auth-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.auth-form label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-weight: 500;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-size: 1rem;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.auth-form .btn-block {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.auth-footer {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.auth-footer a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.auth-footer a:hover {
+    text-decoration: underline;
+}
+
+/* =============================================================================
+   FOOTER - Pie de página sencillo con FontAwesome
+   ============================================================================= */
+.footer {
+    background: var(--color-primary);
+    color: rgba(255, 255, 255, 0.9);
+    margin-top: auto;
+}
+
+.footer__content {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    gap: 2rem;
+    padding: 2.5rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.footer__section {
+    flex: 1;
+    min-width: 200px;
+}
+
+.footer__title {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    color: white;
+}
+
+.footer__text {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.footer__text i {
+    margin-right: 0.5rem;
+    width: 1rem;
+}
+
+.footer__social {
+    display: flex;
+    flex-direction: column;
+}
+
+.footer__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+    margin-top: 0.5rem;
+    transition: background 0.2s;
+}
+
+.footer__icon:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.footer__bottom {
+    text-align: center;
+    padding: 1rem 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.85rem;
+}
+
+/* =============================================================================
+   RESPONSIVE
+   ============================================================================= */
+/* Flash messages - margen superior cuando hay navbar */
+.flash-messages {
+    margin: 1rem 2rem 1rem;
+}
+
+/* Páginas con padding (auth, presupuestos, etc.) */
+.main-content .presupuestos-page,
+.main-content .auth-container,
+.main-content .form-page,
+.main-content .detalle-page {
+    padding: 2rem;
+    padding-top: calc(var(--navbar-height) + 1rem);
+}
+
+@media (max-width: 768px) {
+    .navbar__container {
+        flex-wrap: wrap;
+    }
+
+    .navbar__menu {
+        display: none;
+        flex-direction: column;
+        width: 100%;
+        padding: 1rem 0;
+        gap: 0;
+    }
+
+    .navbar__menu--open {
+        display: flex;
+    }
+
+    .navbar__link {
+        padding: 0.75rem 1.5rem;
+        border-radius: 0;
+    }
+
+    .navbar__toggle {
+        display: block;
+    }
+
+    .carousel__track {
+        height: 250px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .presupuestos-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .footer__content {
+        flex-direction: column;
+    }
+
+    /* Franja 1: columna única en móvil */
+    .franja__container--two-cols {
+        grid-template-columns: 1fr;
+    }
+
+    .franja-1__carousel {
+        order: -1; /* Carrusel arriba en móvil */
+    }
+
+    .carousel-intro__track {
+        height: 250px;
+    }
+
+    .card-budget {
+        flex: 0 0 260px;
+    }
+}

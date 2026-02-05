@@ -1,0 +1,37 @@
+{#
+  ==========================================================================
+  PÁGINA DE INICIO DE SESIÓN
+  Solo correos @academicos.mx pueden acceder al panel de administración.
+  ==========================================================================
+#}
+{% extends "base/layout.html" %}
+{% block title %}Iniciar sesión{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <h1>Iniciar sesión</h1>
+        <p class="auth-hint">Solo personal con correo institucional @academicos.mx puede acceder al panel de administración.</p>
+        
+        <form method="POST" action="{{ url_for('auth_login') }}" class="auth-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label for="email">Correo electrónico</label>
+                <input type="email" id="email" name="email" required 
+                       placeholder="usuario@academicos.mx" 
+                       value="{{ request.form.get('email', '') }}">
+            </div>
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required 
+                       placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn btn--primary btn-block">Entrar</button>
+        </form>
+        
+        <p class="auth-footer">
+            ¿No tienes cuenta? <a href="{{ url_for('auth_registro') }}">Registrarse</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

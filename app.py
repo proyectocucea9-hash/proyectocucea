@@ -17,18 +17,38 @@ Gamificación: cantidad_gasto por presupuesto (solo al crear); Total Invertido e
 """
 
 from datetime import datetime, date, timedelta
-from dotenv import load_dotenv
+from pathlib import Path
+import os
 import random
 import string
-load_dotenv()
+import threading
 
-from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
+from dotenv import load_dotenv
+
+# Cargar .env; si no existe, crearlo con placeholders para credenciales SMTP
+_env_path = Path(__file__).resolve().parent / '.env'
+if not _env_path.exists():
+    _env_path.write_text(
+        '# Credenciales SMTP (obligatorias para enviar el código de verificación)\n'
+        'MAIL_USERNAME=\n'
+        'MAIL_PASSWORD=\n'
+        'MAIL_SERVER=smtp.gmail.com\n'
+        'MAIL_PORT=587\n'
+        'MAIL_USE_TLS=true\n'
+        'MAIL_DEFAULT_SENDER=noreply@cucea.udg.mx\n'
+        'SECRET_KEY=clave-secreta-cambiar-en-produccion\n',
+        encoding='utf-8'
+    )
+load_dotenv(_env_path)
+
+from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
-from flask_mail import Message
+from flask_mail import Mail, Message
+from sqlalchemy import func
 
 from config import Config
-from extensions import db, login_manager, mail
+from extensions import db, login_manager
 from models import Usuario, Presupuesto, Comentario, CarruselSlide, ContenidoSite, PendingRegistro, VotoPresupuesto
 
 
@@ -56,13 +76,23 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     # -------------------------------------------------------------------------
-    # Inicializar extensiones: SQLAlchemy, Flask-Login, CSRF, Flask-Mail
-    # Flask-Mail se usa para enviar el código de verificación al registrarse.
+    # Flask-Mail: configuración hardcoded para Gmail (cambiar TU_CORREO y TU_CLAVE).
+    # En Docker, las variables de entorno sobrescriben si se pasan en .env.
+    # -------------------------------------------------------------------------
+    app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+    app.config['MAIL_PORT'] = 587
+    app.config['MAIL_USE_TLS'] = True
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME') or 'TU_CORREO@gmail.com'  # Yo lo cambiaré
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD') or 'TU_CLAVE_16_DIGITOS'   # Yo lo cambiaré
+    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER') or app.config['MAIL_USERNAME']
+    mail = Mail(app)
+
+    # -------------------------------------------------------------------------
+    # Inicializar extensiones: SQLAlchemy, Flask-Login, CSRF (Mail ya creado arriba)
     # -------------------------------------------------------------------------
     db.init_app(app)
     login_manager.init_app(app)
     CSRFProtect(app)
-    mail.init_app(app)
 
     # -------------------------------------------------------------------------
     # Flask-Login: Callback para cargar usuario desde la base de datos.
@@ -86,16 +116,33 @@ def create_app(config_class=Config):
     login_manager.login_message_category = 'info'
 
     # -------------------------------------------------------------------------
-    # Context processor: total_invertido = suma de cantidad_gasto de todos los presupuestos.
-    # Se muestra en la Navbar como "Total Invertido: $X". Actualiza al añadir/borrar uno.
+    # Ciberseguridad: solo correos @alumnos.udg.mx pueden acceder a rutas de Admin.
+    # Uso: @admin_required bajo @login_required. Si el dominio no es alumnos.udg.mx -> 403.
+    # -------------------------------------------------------------------------
+    def admin_required(f):
+        from functools import wraps
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return redirect(url_for('auth_login'))
+            email = getattr(current_user, 'email', '') or ''
+            if not email or email.split('@')[-1].lower() != 'alumnos.udg.mx':
+                abort(403)
+            return f(*args, **kwargs)
+        return decorated
+
+    # -------------------------------------------------------------------------
+    # Context processor: total_invertido = suma real de cantidad_gasto (SQLAlchemy func.sum).
+    # Se muestra en la Navbar como "Total de Gastos" a la derecha con icono de dinero.
     # -------------------------------------------------------------------------
     @app.context_processor
     def inject_globals():
-        total = db.session.query(db.func.coalesce(db.func.sum(Presupuesto.cantidad_gasto), 0)).scalar() or 0
+        total = db.session.query(func.coalesce(func.sum(Presupuesto.cantidad_gasto), 0)).scalar()
+        total_invertido = float(total) if total is not None else 0.0
         return {
             'current_year': datetime.now().year,
             'map_address': app.config.get('MAP_ADDRESS', 'CUCEA, Universidad de Guadalajara'),
-            'total_invertido': float(total),
+            'total_invertido': total_invertido,
         }
 
     # =========================================================================
@@ -273,8 +320,9 @@ def create_app(config_class=Config):
     @app.route('/api/comentario/<int:id>/eliminar', methods=['POST'])
     @login_required
     def api_comentario_eliminar(id):
-        """Elimina un comentario. Solo Admin (moderación)."""
-        if not current_user.es_administrador:
+        """Elimina un comentario. Solo correos @alumnos.udg.mx; 403 si no."""
+        email = getattr(current_user, 'email', '') or ''
+        if not email or email.split('@')[-1].lower() != 'alumnos.udg.mx':
             abort(403)
         c = Comentario.query.get_or_404(id)
         presupuesto_id = c.presupuesto_id
@@ -313,31 +361,26 @@ def create_app(config_class=Config):
     # RUTAS DE AUTENTICACIÓN - Solo @alumnos.udg.mx + verificación por correo
     # =========================================================================
 
+    def send_async_email(app_instance, mail_instance, msg):
+        """Envía el correo en segundo plano para evitar timeouts. Muestra error real en terminal."""
+        with app_instance.app_context():
+            try:
+                print('[SISTEMA] Intentando enviar código...', flush=True)
+                mail_instance.send(msg)
+                print('[SISTEMA] Correo enviado correctamente.', flush=True)
+            except Exception as e:
+                print(f'[ERROR CRÍTICO]: {e}', flush=True)
+
     def _enviar_codigo_verificacion(email_destino, codigo):
-        """
-        Envía el código de 6 dígitos por Flask-Mail al correo del usuario.
-        Lógica del flujo de verificación:
-        1. Usuario envía formulario de registro (auth_registro) con email @alumnos.udg.mx.
-        2. No creamos la cuenta aún; guardamos email, nombre, password_hash y codigo en
-           la tabla PendingRegistro (evita cuentas sin verificar).
-        3. Se llama a esta función con el correo y el código generado (6 dígitos aleatorios).
-        4. Flask-Mail envía un mensaje con el código; en producción se configuran
-           MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD en .env.
-        5. El usuario llega a auth_verificar, introduce el código; si coincide con
-           PendingRegistro.codigo, se crea el registro en Usuario (con la contraseña
-           ya hasheada) y se borra el PendingRegistro.
-        Si el envío falla (ej. SMTP no configurado en desarrollo), el código sigue
-        en la BD y se puede probar manualmente.
-        """
+        """Genera el mensaje y lo envía en un hilo para no bloquear la app."""
         msg = Message(
             subject='Código de verificación - CUCEA Transparencia',
             recipients=[email_destino],
             body=f'Tu código de verificación es: {codigo}\n\nVálido por {app.config.get("VERIFICATION_CODE_EXPIRY_MINUTES", 15)} minutos.\n\nSi no solicitaste este registro, ignora este correo.',
+            sender=app.config.get('MAIL_DEFAULT_SENDER'),
         )
-        try:
-            mail.send(msg)
-        except Exception:
-            pass  # En desarrollo sin SMTP configurado puede fallar; el código sigue en BD
+        thread = threading.Thread(target=send_async_email, args=(app, mail, msg))
+        thread.start()
 
     @app.route('/auth/login', methods=['GET', 'POST'])
     def auth_login():
@@ -348,10 +391,10 @@ def create_app(config_class=Config):
         if request.method == 'POST':
             email = request.form.get('email', '').strip().lower()
             password = request.form.get('password', '')
-            dominio = app.config['ADMIN_EMAIL_DOMAIN']
-
-            if not email.endswith(dominio):
-                flash(f'Solo correos {dominio} pueden iniciar sesión.', 'error')
+            # Validación estricta: solo dominio exacto @alumnos.udg.mx (no subdominios falsos)
+            dominio_permitido = 'alumnos.udg.mx'
+            if not email or '@' not in email or email.split('@')[-1].lower() != dominio_permitido:
+                flash(f'Solo correos @{dominio_permitido} pueden iniciar sesión.', 'error')
                 return render_template('auth/login.html')
 
             usuario = Usuario.query.filter_by(email=email).first()
@@ -380,10 +423,11 @@ def create_app(config_class=Config):
             nombre = request.form.get('nombre', '').strip()
             password = request.form.get('password', '')
             password_confirm = request.form.get('password_confirm', '')
-            dominio = app.config['ADMIN_EMAIL_DOMAIN']
 
-            if not email.endswith(dominio):
-                flash(f'Solo correos {dominio} pueden registrarse.', 'error')
+            # Validación estricta: solo @alumnos.udg.mx (dominio exacto, sin subdominios)
+            dominio_permitido = 'alumnos.udg.mx'
+            if not email or '@' not in email or email.split('@')[-1].lower() != dominio_permitido:
+                flash(f'Solo correos @{dominio_permitido} pueden registrarse.', 'error')
                 return render_template('auth/registro.html')
             if password != password_confirm:
                 flash('Las contraseñas no coinciden.', 'error')
@@ -409,22 +453,24 @@ def create_app(config_class=Config):
             db.session.add(pend)
             db.session.commit()
 
+            # Guardar en sesión (temporalmente) para verificación sin parámetros en URL
+            session['pending_verification_email'] = email
+            session['pending_verification_codigo'] = codigo
             _enviar_codigo_verificacion(email, codigo)
             flash('Revisa tu correo: te enviamos un código de 6 dígitos. Introducelo a continuación.', 'success')
-            return redirect(url_for('auth_verificar', email=email))
+            return redirect(url_for('auth_verificar'))
 
         return render_template('auth/registro.html')
 
     @app.route('/auth/verificar', methods=['GET', 'POST'])
     def auth_verificar():
         """
-        El usuario introduce el código de 6 dígitos enviado por correo.
-        Si es correcto y no ha expirado, se crea la cuenta en Usuario (contraseña
-        ya encriptada en PendingRegistro) y se elimina el registro pendiente.
+        Verificación por POST: el correo viene de la sesión (no de la URL).
+        El usuario introduce el código de 6 dígitos; si es correcto, se crea la cuenta en la BD.
         """
-        email = request.args.get('email', '').strip().lower() or request.form.get('email', '').strip().lower()
+        email = session.get('pending_verification_email', '').strip().lower()
         if not email:
-            flash('Falta el correo.', 'error')
+            flash('Sesión de verificación no encontrada. Completa el registro de nuevo.', 'error')
             return redirect(url_for('auth_registro'))
 
         if request.method == 'POST':
@@ -433,20 +479,28 @@ def create_app(config_class=Config):
                 flash('El código debe tener 6 dígitos.', 'error')
                 return render_template('auth/verificar.html', email=email)
 
+            # Validar código: sesión o PendingRegistro
+            codigo_ok = (session.get('pending_verification_codigo') == codigo)
             pend = PendingRegistro.query.filter_by(email=email).order_by(PendingRegistro.creado_at.desc()).first()
-            if not pend:
-                flash('No hay registro pendiente para ese correo. Regístrate de nuevo.', 'error')
-                return redirect(url_for('auth_registro'))
-            if pend.codigo != codigo:
+            if not codigo_ok and pend:
+                codigo_ok = (pend.codigo == codigo)
+            if not codigo_ok:
                 flash('Código incorrecto.', 'error')
                 return render_template('auth/verificar.html', email=email)
+            if not pend:
+                flash('No hay registro pendiente para ese correo. Regístrate de nuevo.', 'error')
+                session.pop('pending_verification_email', None)
+                session.pop('pending_verification_codigo', None)
+                return redirect(url_for('auth_registro'))
 
-            # Código correcto: crear usuario en la BD con contraseña ya encriptada
+            # Solo si el código coincide: crear usuario en la BD y limpiar sesión
             usuario = Usuario(email=pend.email, nombre=pend.nombre, es_admin=True)
             usuario.password_hash = pend.password_hash
             db.session.add(usuario)
             db.session.delete(pend)
             db.session.commit()
+            session.pop('pending_verification_email', None)
+            session.pop('pending_verification_codigo', None)
             flash('Cuenta verificada correctamente. Inicia sesión.', 'success')
             return redirect(url_for('auth_login'))
 
@@ -466,13 +520,12 @@ def create_app(config_class=Config):
 
     @app.route('/presupuesto/nuevo', methods=['GET', 'POST'])
     @login_required
+    @admin_required
     def presupuesto_nuevo():
         """
         Crear nuevo proyecto presupuestario.
-        Requiere autenticación y es_administrador=True.
+        Solo correos @alumnos.udg.mx (validado por admin_required); 403 en caso contrario.
         """
-        if not current_user.es_administrador:
-            abort(403)
 
         if request.method == 'POST':
             concepto = request.form.get('concepto', '').strip()
@@ -516,13 +569,12 @@ def create_app(config_class=Config):
 
     @app.route('/presupuesto/editar/<int:id>', methods=['GET', 'POST'])
     @login_required
+    @admin_required
     def presupuesto_editar(id):
         """
         Editar proyecto existente.
-        Requiere autenticación y es_administrador=True.
+        Solo @alumnos.udg.mx; 403 si no.
         """
-        if not current_user.es_administrador:
-            abort(403)
 
         presupuesto = Presupuesto.query.get_or_404(id)
 
@@ -547,13 +599,9 @@ def create_app(config_class=Config):
 
     @app.route('/presupuesto/eliminar/<int:id>', methods=['POST'])
     @login_required
+    @admin_required
     def presupuesto_eliminar(id):
-        """
-        Eliminar proyecto (alias interno).
-        Requiere autenticación y es_administrador=True.
-        """
-        if not current_user.es_administrador:
-            abort(403)
+        """Eliminar proyecto. Solo @alumnos.udg.mx; 403 si no."""
         presupuesto = Presupuesto.query.get_or_404(id)
         db.session.delete(presupuesto)
         db.session.commit()
@@ -567,15 +615,12 @@ def create_app(config_class=Config):
     # -------------------------------------------------------------------------
     @app.route('/borrar_presupuesto/<int:id>', methods=['POST'])
     @login_required
+    @admin_required
     def borrar_presupuesto(id):
         """
-        Elimina un presupuesto por id. Solo Admin.
-        Se usa desde el botón 'Borrar' (ícono de basura) en cada card y en detalle.
-        El borrado es definitivo: se elimina el registro de la base de datos y sus
-        comentarios asociados (por FK en cascada o manualmente según el modelo).
+        Elimina un presupuesto por id. Solo @alumnos.udg.mx (admin_required); 403 si no.
+        Usado desde el botón Borrar en cards y detalle.
         """
-        if not current_user.es_administrador:
-            abort(403)
         presupuesto = Presupuesto.query.get_or_404(id)
         db.session.delete(presupuesto)
         db.session.commit()
@@ -621,10 +666,9 @@ def create_app(config_class=Config):
 
     @app.route('/admin/seed')
     @login_required
+    @admin_required
     def admin_seed():
-        """Opcional: insertar 5 presupuestos de prueba manualmente (solo Admin)."""
-        if not current_user.es_administrador:
-            abort(403)
+        """Insertar 5 presupuestos de prueba. Solo @alumnos.udg.mx."""
         if seed_data():
             flash('Se insertaron 5 presupuestos de prueba.', 'success')
         else:
@@ -633,14 +677,12 @@ def create_app(config_class=Config):
 
     @app.route('/admin/carrusel', methods=['GET', 'POST'])
     @login_required
+    @admin_required
     def admin_carrusel():
         """
-        Administración del carrusel de imágenes de la franja 1 (index).
-        GET: Lista de slides con botones Editar/Subir (añadir).
-        POST: Crear o actualizar slide (imagen_url, titulo_alt, orden).
+        Administración del carrusel (franja 1). Solo @alumnos.udg.mx.
+        GET: Lista slides. POST: Crear o actualizar slide.
         """
-        if not current_user.es_administrador:
-            abort(403)
         if request.method == 'POST':
             accion = request.form.get('accion', 'crear')
             if accion == 'crear':
@@ -669,10 +711,9 @@ def create_app(config_class=Config):
 
     @app.route('/admin/carrusel/<int:id>/eliminar', methods=['POST'])
     @login_required
+    @admin_required
     def admin_carrusel_eliminar(id):
-        """Elimina un slide del carrusel (solo Admin)."""
-        if not current_user.es_administrador:
-            abort(403)
+        """Elimina un slide del carrusel. Solo @alumnos.udg.mx."""
         slide = CarruselSlide.query.get_or_404(id)
         db.session.delete(slide)
         db.session.commit()
@@ -681,13 +722,12 @@ def create_app(config_class=Config):
 
     @app.route('/admin/contenido', methods=['GET', 'POST'])
     @login_required
+    @admin_required
     def admin_contenido():
         """
-        Edición de textos de la franja 1 (título, párrafos).
-        Los valores se guardan en ContenidoSite por clave.
+        Edición de textos de la franja 1. Solo @alumnos.udg.mx.
+        Valores en ContenidoSite por clave.
         """
-        if not current_user.es_administrador:
-            abort(403)
         claves = ['index_franja1_titulo', 'index_franja1_subtitulo', 'index_franja1_parrafo1', 'index_franja1_parrafo2', 'index_fondo_url']
         if request.method == 'POST':
             for key in claves:

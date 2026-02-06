@@ -103,13 +103,21 @@ body {
     transition: font-size 0.3s ease;
 }
 
-/* Total Invertido: suma de cantidad_gasto (gamificación), visible en Navbar */
+/* Total de Gastos: suma real (func.sum) en Navbar, extremo derecho con icono de dinero */
 .navbar__total-invertido {
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--color-primary);
     padding: 0 1rem;
     white-space: nowrap;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.navbar__total-invertido i {
+    font-size: 1rem;
+    opacity: 0.9;
 }
 
 .navbar__menu {
@@ -290,18 +298,26 @@ body {
     padding-top: 2rem;
 }
 
+/* Franja 1: sistema de columnas Bootstrap (.container > .row > .col-md-6). No usar grid aquí. */
 .franja__container--two-cols {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-wrap: wrap;
     gap: 3rem;
     align-items: center;
 }
 
+/* Bloque de texto: forma rectangular legible, sin estirarse como chicle */
 .franja-1__descripcion {
     background: var(--color-card);
-    padding: 2.5rem;
+    padding: 2rem 2.5rem;
     border-radius: 12px;
     box-shadow: var(--shadow-hover);
+    width: 100%;
+}
+
+.franja-1__text-block {
+    max-width: 36em;
+    padding: 0;
 }
 
 .franja-1__title {
@@ -321,9 +337,10 @@ body {
     line-height: 1.7;
 }
 
-/* Carrusel de imágenes - Franja 1, columna derecha (ajustado estrictamente) */
+/* Carrusel - Franja 1, columna derecha (.col-md-6) */
 .franja-1__carousel {
     width: 100%;
+    min-width: 0;
 }
 
 .carousel-intro {
@@ -1559,13 +1576,13 @@ body.modal-open-scroll-lock {
         flex-direction: column;
     }
 
-    /* Franja 1: columna única en móvil */
-    .franja__container--two-cols {
-        grid-template-columns: 1fr;
+    /* Franja 1: en móvil la columna del carrusel va arriba */
+    #franja-1 .row .col-md-6:last-child {
+        order: -1;
     }
-
-    .franja-1__carousel {
-        order: -1; /* Carrusel arriba en móvil */
+    #franja-1 .row {
+        display: flex;
+        flex-direction: column;
     }
 
     .carousel-intro__track {

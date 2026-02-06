@@ -16,7 +16,6 @@
 
         <form method="POST" action="{{ url_for('auth_verificar') }}" class="auth-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="email" value="{{ email }}">
             <div class="form-group">
                 <label for="codigo">Código de verificación</label>
                 <input type="text" id="codigo" name="codigo" required maxlength="6" minlength="6"

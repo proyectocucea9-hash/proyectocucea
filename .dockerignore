@@ -1,0 +1,9 @@
+# No copiar al build de Docker
+.env
+venv
+__pycache__
+*.pyc
+.git
+instance/*.db
+*.md
+.cursor

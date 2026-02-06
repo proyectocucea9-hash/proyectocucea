@@ -19,10 +19,10 @@ class Config:
     # Clave secreta para sesiones y CSRF (cambiar en producción)
     SECRET_KEY = os.environ.get('SECRET_KEY', 'clave-secreta-cambiar-en-produccion')
 
-    # Ruta de la base de datos SQLite
+    # Base de datos local SQLite (sin XAMPP/MySQL). Se crea automáticamente si no existe (db.create_all).
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'DATABASE_URL',
-        f'sqlite:///{BASE_DIR / "instance" / "transparencia.db"}'
+        f'sqlite:///{BASE_DIR / "instance" / "escuela.db"}'
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -33,17 +33,17 @@ class Config:
     ADMIN_EMAIL_DOMAIN = '@alumnos.udg.mx'
 
     # -------------------------------------------------------------------------
-    # Flask-Mail: envío del código de verificación de 6 dígitos al registrarse.
-    # El usuario debe introducir el código correcto para crear la cuenta.
-    # En producción usar variables de entorno (MAIL_USERNAME, MAIL_PASSWORD).
+    # SMTP (Flask-Mail) - Envío real del código de 6 dígitos.
+    # Configuración técnica: smtp.gmail.com, puerto 587, TLS = True.
+    # Credenciales desde .env vía python-dotenv: MAIL_USERNAME y MAIL_PASSWORD.
+    # Si el envío falla, app.py imprime el error en terminal (try/except).
     # -------------------------------------------------------------------------
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-    MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
-    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', '')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', '587'))
+    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ('true', '1', 'yes')
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME', '').strip()
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', '').strip()
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@cucea.udg.mx')
-    # Tiempo de validez del código de verificación (minutos)
     VERIFICATION_CODE_EXPIRY_MINUTES = 15
 
     # Google Maps (opcional)

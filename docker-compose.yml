@@ -1,0 +1,32 @@
+# =============================================================================
+# Docker Compose - Plataforma de Transparencia Presupuestaria CUCEA
+#
+# Uso:
+#   1. Crear .env con MAIL_USERNAME y MAIL_PASSWORD (Gmail: contraseña de aplicación).
+#   2. docker-compose up --build
+#   3. Abrir http://localhost:5000
+#
+# Las variables de entorno se cargan desde .env y se pasan al contenedor para
+# que Flask-Mail use las credenciales correctas (sin depender de config hardcoded).
+# =============================================================================
+
+services:
+  app:
+    build: .
+    container_name: transparencia-cucea
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_DEBUG=1
+      - MAIL_SERVER=smtp.gmail.com
+      - MAIL_PORT=587
+      - MAIL_USE_TLS=true
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_DEFAULT_SENDER=${MAIL_USERNAME}
+      - DATABASE_URL=sqlite:///instance/escuela.db
+    volumes:
+      - ./instance:/app/instance
+    restart: unless-stopped

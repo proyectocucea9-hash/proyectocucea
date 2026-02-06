@@ -1,6 +1,6 @@
 # Plataforma de Transparencia Presupuestaria - CUCEA
 
-Web profesional donde el público puede ver en qué se invierte el dinero, y solo el personal autorizado (@academicos.mx) puede editar los datos.
+Web profesional donde el público puede ver en qué se invierte el dinero. Solo correos @alumnos.udg.mx pueden registrarse (con verificación por correo) y editar los datos.
 
 ## Tecnologías
 
@@ -37,6 +37,23 @@ proyectocucea/
 
 ## Instalación
 
+### Opción 1: Con Docker (mismo entorno para todo el equipo)
+
+```bash
+# Copiar credenciales (obligatorio para que se envíe el código de verificación por correo)
+cp .env.example .env
+# Editar .env y rellenar MAIL_USERNAME, MAIL_PASSWORD, MAIL_SERVER, etc.
+
+# Construir y levantar la aplicación
+docker-compose up --build
+
+# Abrir http://localhost:5000
+```
+
+La base de datos SQLite se persiste en `./instance`. Para parar: `docker-compose down`.
+
+### Opción 2: Sin Docker
+
 ```bash
 # Crear entorno virtual (recomendado)
 python -m venv venv
@@ -46,6 +63,7 @@ venv\Scripts\activate   # Windows
 # Instalar dependencias
 pip install -r requirements.txt
 
+# Copiar .env.example a .env y configurar (sobre todo SMTP para el código de verificación)
 # Ejecutar
 python app.py
 ```
@@ -56,15 +74,17 @@ Abre http://localhost:5000 en el navegador.
 
 - **Visitante**: Puede ver la página de inicio, "Quiénes somos", ubicación (mapa) y el listado de presupuesto. No ve botones de edición ni borrado.
 
-- **Administrador**: Solo correos que terminen en `@academicos.mx` pueden registrarse e iniciar sesión. Tienen acceso a crear, editar y eliminar registros de presupuesto.
+- **Administrador**: Solo correos `@alumnos.udg.mx` pueden registrarse (tras verificar el código enviado por correo) e iniciar sesión. Tienen acceso a crear, editar y eliminar registros de presupuesto.
 
 ## Configuración
 
 Copia `.env.example` a `.env` y ajusta:
 
 - `SECRET_KEY`: Clave secreta para sesiones (cambiar en producción)
-- `ADMIN_EMAIL_DOMAIN`: Dominio permitido para admins (por defecto @academicos.mx)
+- **SMTP (obligatorio para que se envíe el código de verificación)**: `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USE_TLS`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_DEFAULT_SENDER`. Con Gmail, usar "Contraseña de aplicación".
 - `MAP_ADDRESS`: Dirección mostrada en el mapa
+
+Si el correo no se envía, en la terminal donde corre la app aparecerá el error de Flask-Mail (revisar credenciales y puerto).
 
 ## Imagen "Quiénes somos"
 

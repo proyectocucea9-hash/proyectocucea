@@ -29,16 +29,12 @@
        ========================================================================== #}
     <header class="navbar navbar--sticky" id="main-navbar">
         <div class="navbar__container">
-            <!-- Logo centrado a la izquierda del espacio -->
+            <!-- Logo a la izquierda -->
             <a href="{{ url_for('index') }}" class="navbar__brand">
                 <span class="navbar__logo">CUCEA</span>
                 <span class="navbar__subtitle">Transparencia</span>
             </a>
 
-            <!-- Total Invertido: suma de cantidad_gasto de todos los presupuestos (gamificación) -->
-            <div class="navbar__total-invertido">
-                Total Invertido: ${{ "{:,.0f}".format(total_invertido) }}
-            </div>
             <nav class="navbar__menu">
                 <a href="{{ url_for('index') }}" class="navbar__link">Inicio</a>
                 <a href="{{ url_for('presupuestos_lista') }}" class="navbar__link">Presupuesto</a>
@@ -50,6 +46,13 @@
                     <a href="{{ url_for('auth_login') }}" class="navbar__link navbar__link--cta">Iniciar Sesión</a>
                 {% endif %}
             </nav>
+
+            <!-- Total de Gastos: suma real de cantidad_gasto (BD), formato profesional y badge a la derecha -->
+            <div class="navbar__total-invertido">
+                <i class="fas fa-coins" aria-hidden="true"></i>
+                <span>Total de Gastos:</span>
+                <span class="badge bg-success">${{ "{:,.2f}".format(total_invertido) }}</span>
+            </div>
 
             <button class="navbar__toggle" id="navbar-toggle" aria-label="Abrir menú">
                 <span></span><span></span><span></span>

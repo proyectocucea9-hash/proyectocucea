@@ -1,0 +1,14 @@
+# Credenciales - NUNCA subir .env al repositorio
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+.eggs/
+
+# Instance (BD local)
+instance/*.db

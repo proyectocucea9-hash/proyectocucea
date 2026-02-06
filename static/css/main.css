@@ -1132,6 +1132,41 @@ body {
     gap: 1rem;
 }
 
+/* =============================================================================
+   ADMIN USUARIOS - Tabla a pantalla completa, sin restricciones de altura
+   ============================================================================= */
+.usuarios-admin-page {
+    width: 100%;
+    max-width: none;
+}
+
+.usuarios-admin-header h1 {
+    margin: 0 0 0.5rem;
+    font-size: 1.5rem;
+    color: var(--color-primary);
+}
+
+.usuarios-admin-table-wrapper {
+    overflow: visible;
+    max-height: none;
+}
+
+.usuarios-admin-table-wrapper .table-responsive {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-height: none;
+}
+
+.usuarios-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.usuarios-table th,
+.usuarios-table td {
+    vertical-align: middle;
+}
+
 .form-actions {
     display: flex;
     gap: 1rem;

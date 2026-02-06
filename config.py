@@ -27,10 +27,10 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # -------------------------------------------------------------------------
-    # Dominio obligatorio: SOLO @alumnos.udg.mx puede registrarse e iniciar sesión.
+    # Dominios permitidos: @alumnos.udg.mx y @academicos.udg.mx.
     # Cualquier otro dominio queda bloqueado.
     # -------------------------------------------------------------------------
-    ADMIN_EMAIL_DOMAIN = '@alumnos.udg.mx'
+    DOMINIOS_PERMITIDOS = ('alumnos.udg.mx', 'academicos.udg.mx')
 
     # -------------------------------------------------------------------------
     # SMTP (Flask-Mail) - Envío real del código de 6 dígitos.

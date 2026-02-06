@@ -19,9 +19,10 @@ from extensions import db
 class Usuario(UserMixin, db.Model):
     """
     Tabla de usuarios del sistema.
-    - Solo correos @alumnos.udg.mx pueden registrarse e iniciar sesión.
-    - Registro con verificación: se envía código de 6 dígitos por Flask-Mail;
-      la cuenta solo se crea al introducir el código correcto.
+    - is_admin: permisos de administrador (presupuestos, carrusel, etc.).
+    - is_super_admin: acceso al panel de gestión de usuarios; puede eliminar usuarios.
+    - Regla de oro: el primer usuario registrado es is_admin=True e is_super_admin=True.
+      Los siguientes solo is_admin=True.
     - password_hash: contraseña encriptada (Werkzeug PBKDF2), nunca en texto plano.
     """
     __tablename__ = 'usuarios'
@@ -31,6 +32,7 @@ class Usuario(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     nombre = db.Column(db.String(100), nullable=False)
     es_admin = db.Column(db.Boolean, default=False, nullable=False)
+    es_super_admin = db.Column(db.Boolean, default=False, nullable=False)
 
     fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
     votos = db.relationship('VotoPresupuesto', backref='usuario', lazy='dynamic')
@@ -56,6 +58,14 @@ class Usuario(UserMixin, db.Model):
         Usada en plantillas para mostrar/ocultar botones de edición.
         """
         return self.es_admin
+
+    @property
+    def es_super_administrador(self):
+        """
+        Propiedad que indica si el usuario es Super Admin.
+        Solo el Super Admin puede gestionar y eliminar usuarios.
+        """
+        return self.es_super_admin
 
 
 # =============================================================================

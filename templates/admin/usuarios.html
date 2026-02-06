@@ -1,0 +1,78 @@
+{# ==========================================================================
+   ADMIN - Gestión de usuarios (Solo Super Admin)
+   Tabla a pantalla completa: Nombre, Correo, Rol, Acciones.
+   Solo Super Admin ve columna Acciones y botón Eliminar (icono basura rojo).
+   Badges: bg-primary (Super Admin), bg-secondary (Admin).
+   ========================================================================== #}
+
+{% extends "base/layout.html" %}
+{% block title %}Gestionar Usuarios{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-3 usuarios-admin-page">
+    <header class="usuarios-admin-header mb-4">
+        <h1>Gestión de Usuarios</h1>
+        <p class="auth-hint text-muted">Solo el Super Admin puede ver la columna de Acciones y eliminar usuarios. No puedes eliminarte a ti mismo.</p>
+    </header>
+
+    <div class="usuarios-admin-table-wrapper">
+        <div class="table-responsive">
+            <table class="table table-hover table-lg usuarios-table">
+                <colgroup>
+                    <col style="width: 25%">
+                    <col style="width: 35%">
+                    <col style="width: 20%">
+                    {% if current_user.es_super_administrador %}
+                    <col style="width: 20%">
+                    {% endif %}
+                </colgroup>
+                <thead class="table-light">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Correo</th>
+                        <th>Rol</th>
+                        {% if current_user.es_super_administrador %}
+                        <th>Acciones</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td class="align-middle">{{ u.nombre }}</td>
+                        <td class="align-middle">{{ u.email }}</td>
+                        <td class="align-middle">
+                            {% if u.es_super_admin %}
+                            <span class="badge bg-primary">Super Admin</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Admin</span>
+                            {% endif %}
+                        </td>
+                        {% if current_user.es_super_administrador %}
+                        <td class="align-middle">
+                            {% if u.id != current_user.id %}
+                            <form action="{{ url_for('admin_usuario_eliminar', id=u.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar al usuario {{ u.nombre }}? Esta acción no se puede deshacer.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar usuario"><i class="fas fa-trash"></i></button>
+                            </form>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{{ 4 if current_user.es_super_administrador else 3 }}" class="text-muted text-center py-5">No hay usuarios registrados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <p class="mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn--secondary">← Volver al inicio</a>
+    </p>
+</div>
+{% endblock %}

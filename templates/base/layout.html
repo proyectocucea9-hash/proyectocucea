@@ -40,6 +40,9 @@
                 <a href="{{ url_for('presupuestos_lista') }}" class="navbar__link">Presupuesto</a>
                 {% if current_user.is_authenticated and current_user.es_administrador %}
                     <a href="{{ url_for('presupuesto_nuevo') }}" class="navbar__link navbar__link--admin">Agregar</a>
+                    {% if current_user.es_super_administrador %}
+                    <a href="{{ url_for('admin_usuarios') }}" class="navbar__link">Gestionar Usuarios</a>
+                    {% endif %}
                     <span class="navbar__user">{{ current_user.nombre }}</span>
                     <a href="{{ url_for('auth_logout') }}" class="navbar__link navbar__link--logout">Cerrar sesión</a>
                 {% else %}
@@ -65,7 +68,7 @@
         {% if messages %}
         <div class="flash-messages">
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
+            <div class="alert alert-{{ 'danger' if category == 'error' else category }}">{{ message }}</div>
             {% endfor %}
         </div>
         {% endif %}

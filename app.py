@@ -1,13 +1,13 @@
 """
 =============================================================================
 PLATAFORMA DE TRANSPARENCIA PRESUPUESTARIA - CUCEA
-Aplicación principal Flask - Seguridad, verificación por correo, likes por usuario.
+Aplicación principal Flask - Registro directo, likes por usuario.
 =============================================================================
 
-Seguridad y verificación:
-- Dominio obligatorio: SOLO @alumnos.udg.mx puede registrarse e iniciar sesión.
-- Al registrarse se envía un código de 6 dígitos por Flask-Mail; la cuenta solo
-  se crea en la BD cuando el usuario introduce el código correcto (tabla PendingRegistro).
+Seguridad:
+- Dominio obligatorio: SOLO @alumnos.udg.mx y @academicos.udg.mx pueden registrarse e iniciar sesión.
+- Registro directo: al dar clic en Registrar, los datos se guardan en la BD y se inicia sesión automáticamente.
+- Todos los usuarios nuevos tienen is_admin=True para pruebas de administrador.
 
 Likes anti-spam: tabla VotoPresupuesto vincula usuario_id y presupuesto_id; un voto
 por persona (pueden cambiar de Like a Dislike, no duplicar). Contadores en Presupuesto
@@ -19,42 +19,30 @@ Gamificación: cantidad_gasto por presupuesto (solo al crear); Total Invertido e
 from datetime import datetime, date, timedelta
 from pathlib import Path
 import os
-import random
-import string
-import threading
 
 from dotenv import load_dotenv
 
-# Cargar .env; si no existe, crearlo con placeholders para credenciales SMTP
 _env_path = Path(__file__).resolve().parent / '.env'
 if not _env_path.exists():
-    _env_path.write_text(
-        '# Credenciales SMTP (obligatorias para enviar el código de verificación)\n'
-        'MAIL_USERNAME=\n'
-        'MAIL_PASSWORD=\n'
-        'MAIL_SERVER=smtp.gmail.com\n'
-        'MAIL_PORT=587\n'
-        'MAIL_USE_TLS=true\n'
-        'MAIL_DEFAULT_SENDER=noreply@cucea.udg.mx\n'
-        'SECRET_KEY=clave-secreta-cambiar-en-produccion\n',
-        encoding='utf-8'
-    )
+    _env_path.write_text('SECRET_KEY=clave-secreta-cambiar-en-produccion\n', encoding='utf-8')
 load_dotenv(_env_path)
 
-from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify, session
+from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
-from flask_mail import Mail, Message
 from sqlalchemy import func
 
 from config import Config
 from extensions import db, login_manager
-from models import Usuario, Presupuesto, Comentario, CarruselSlide, ContenidoSite, PendingRegistro, VotoPresupuesto
+from models import Usuario, Presupuesto, Comentario, CarruselSlide, ContenidoSite, VotoPresupuesto
 
 
 # =============================================================================
-# CONFIGURACIÓN - Categorías predefinidas para proyectos presupuestarios
+# CONFIGURACIÓN - Dominios permitidos y categorías
 # =============================================================================
+# Solo correos @alumnos.udg.mx y @academicos.udg.mx pueden registrarse e iniciar sesión.
+DOMINIOS_PERMITIDOS = ('alumnos.udg.mx', 'academicos.udg.mx')
+
 CATEGORIAS = [
     'Infraestructura',
     'Equipamiento',
@@ -76,19 +64,7 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     # -------------------------------------------------------------------------
-    # Flask-Mail: configuración hardcoded para Gmail (cambiar TU_CORREO y TU_CLAVE).
-    # En Docker, las variables de entorno sobrescriben si se pasan en .env.
-    # -------------------------------------------------------------------------
-    app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-    app.config['MAIL_PORT'] = 587
-    app.config['MAIL_USE_TLS'] = True
-    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME') or 'TU_CORREO@gmail.com'  # Yo lo cambiaré
-    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD') or 'TU_CLAVE_16_DIGITOS'   # Yo lo cambiaré
-    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER') or app.config['MAIL_USERNAME']
-    mail = Mail(app)
-
-    # -------------------------------------------------------------------------
-    # Inicializar extensiones: SQLAlchemy, Flask-Login, CSRF (Mail ya creado arriba)
+    # Inicializar extensiones: SQLAlchemy, Flask-Login, CSRF
     # -------------------------------------------------------------------------
     db.init_app(app)
     login_manager.init_app(app)
@@ -116,8 +92,8 @@ def create_app(config_class=Config):
     login_manager.login_message_category = 'info'
 
     # -------------------------------------------------------------------------
-    # Ciberseguridad: solo correos @alumnos.udg.mx pueden acceder a rutas de Admin.
-    # Uso: @admin_required bajo @login_required. Si el dominio no es alumnos.udg.mx -> 403.
+    # Ciberseguridad: solo correos @alumnos.udg.mx y @academicos.udg.mx pueden acceder a rutas de Admin.
+    # Uso: @admin_required bajo @login_required. Si el dominio no está permitido -> 403.
     # -------------------------------------------------------------------------
     def admin_required(f):
         from functools import wraps
@@ -126,7 +102,22 @@ def create_app(config_class=Config):
             if not current_user.is_authenticated:
                 return redirect(url_for('auth_login'))
             email = getattr(current_user, 'email', '') or ''
-            if not email or email.split('@')[-1].lower() != 'alumnos.udg.mx':
+            dominio = email.split('@')[-1].lower() if '@' in email else ''
+            if not dominio or dominio not in DOMINIOS_PERMITIDOS:
+                abort(403)
+            return f(*args, **kwargs)
+        return decorated
+
+    # -------------------------------------------------------------------------
+    # Super Admin: solo usuarios con is_super_admin=True pueden acceder a gestión de usuarios.
+    # -------------------------------------------------------------------------
+    def super_admin_required(f):
+        from functools import wraps
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return redirect(url_for('auth_login'))
+            if not getattr(current_user, 'es_super_administrador', False):
                 abort(403)
             return f(*args, **kwargs)
         return decorated
@@ -320,9 +311,10 @@ def create_app(config_class=Config):
     @app.route('/api/comentario/<int:id>/eliminar', methods=['POST'])
     @login_required
     def api_comentario_eliminar(id):
-        """Elimina un comentario. Solo correos @alumnos.udg.mx; 403 si no."""
+        """Elimina un comentario. Solo @alumnos.udg.mx y @academicos.udg.mx; 403 si no."""
         email = getattr(current_user, 'email', '') or ''
-        if not email or email.split('@')[-1].lower() != 'alumnos.udg.mx':
+        dominio = email.split('@')[-1].lower() if '@' in email else ''
+        if not dominio or dominio not in DOMINIOS_PERMITIDOS:
             abort(403)
         c = Comentario.query.get_or_404(id)
         presupuesto_id = c.presupuesto_id
@@ -358,29 +350,8 @@ def create_app(config_class=Config):
         })
 
     # =========================================================================
-    # RUTAS DE AUTENTICACIÓN - Solo @alumnos.udg.mx + verificación por correo
+    # RUTAS DE AUTENTICACIÓN - Registro directo, login
     # =========================================================================
-
-    def send_async_email(app_instance, mail_instance, msg):
-        """Envía el correo en segundo plano para evitar timeouts. Muestra error real en terminal."""
-        with app_instance.app_context():
-            try:
-                print('[SISTEMA] Intentando enviar código...', flush=True)
-                mail_instance.send(msg)
-                print('[SISTEMA] Correo enviado correctamente.', flush=True)
-            except Exception as e:
-                print(f'[ERROR CRÍTICO]: {e}', flush=True)
-
-    def _enviar_codigo_verificacion(email_destino, codigo):
-        """Genera el mensaje y lo envía en un hilo para no bloquear la app."""
-        msg = Message(
-            subject='Código de verificación - CUCEA Transparencia',
-            recipients=[email_destino],
-            body=f'Tu código de verificación es: {codigo}\n\nVálido por {app.config.get("VERIFICATION_CODE_EXPIRY_MINUTES", 15)} minutos.\n\nSi no solicitaste este registro, ignora este correo.',
-            sender=app.config.get('MAIL_DEFAULT_SENDER'),
-        )
-        thread = threading.Thread(target=send_async_email, args=(app, mail, msg))
-        thread.start()
 
     @app.route('/auth/login', methods=['GET', 'POST'])
     def auth_login():
@@ -391,10 +362,9 @@ def create_app(config_class=Config):
         if request.method == 'POST':
             email = request.form.get('email', '').strip().lower()
             password = request.form.get('password', '')
-            # Validación estricta: solo dominio exacto @alumnos.udg.mx (no subdominios falsos)
-            dominio_permitido = 'alumnos.udg.mx'
-            if not email or '@' not in email or email.split('@')[-1].lower() != dominio_permitido:
-                flash(f'Solo correos @{dominio_permitido} pueden iniciar sesión.', 'error')
+            dominio = email.split('@')[-1].lower() if '@' in email else ''
+            if not email or '@' not in email or dominio not in DOMINIOS_PERMITIDOS:
+                flash('Solo correos @alumnos.udg.mx y @academicos.udg.mx pueden iniciar sesión.', 'error')
                 return render_template('auth/login.html')
 
             usuario = Usuario.query.filter_by(email=email).first()
@@ -411,12 +381,11 @@ def create_app(config_class=Config):
     @app.route('/auth/registro', methods=['GET', 'POST'])
     def auth_registro():
         """
-        Registro: solo @alumnos.udg.mx. No crea la cuenta aquí; guarda en PendingRegistro,
-        genera código de 6 dígitos, lo envía por correo (Flask-Mail) y redirige a verificar.
-        La cuenta se crea en auth_verificar cuando el usuario introduce el código correcto.
+        Registro directo: guarda usuario en la BD, inicia sesión automáticamente y redirige al index.
+        Solo @alumnos.udg.mx y @academicos.udg.mx. Todos los usuarios nuevos tienen is_admin=True.
         """
         if current_user.is_authenticated:
-            return redirect(url_for('presupuestos_lista'))
+            return redirect(url_for('index'))
 
         if request.method == 'POST':
             email = request.form.get('email', '').strip().lower()
@@ -424,10 +393,9 @@ def create_app(config_class=Config):
             password = request.form.get('password', '')
             password_confirm = request.form.get('password_confirm', '')
 
-            # Validación estricta: solo @alumnos.udg.mx (dominio exacto, sin subdominios)
-            dominio_permitido = 'alumnos.udg.mx'
-            if not email or '@' not in email or email.split('@')[-1].lower() != dominio_permitido:
-                flash(f'Solo correos @{dominio_permitido} pueden registrarse.', 'error')
+            dominio = email.split('@')[-1].lower() if '@' in email else ''
+            if not email or '@' not in email or dominio not in DOMINIOS_PERMITIDOS:
+                flash('Solo correos @alumnos.udg.mx y @academicos.udg.mx pueden registrarse.', 'error')
                 return render_template('auth/registro.html')
             if password != password_confirm:
                 flash('Las contraseñas no coinciden.', 'error')
@@ -439,72 +407,23 @@ def create_app(config_class=Config):
                 flash('Ya existe una cuenta con ese correo.', 'error')
                 return render_template('auth/registro.html')
 
-            codigo = ''.join(random.choices(string.digits, k=6))
-            usuario_temp = Usuario(email=email, nombre=nombre, es_admin=True)
-            usuario_temp.set_password(password)
-
-            # Guardar en PendingRegistro (no en Usuario hasta verificar)
-            pend = PendingRegistro(
+            # Regla de oro: primer usuario = admin + super_admin; los siguientes solo admin
+            es_primer_usuario = Usuario.query.count() == 0
+            usuario = Usuario(
                 email=email,
-                nombre=nombre,
-                password_hash=usuario_temp.password_hash,
-                codigo=codigo,
+                nombre=nombre or email.split('@')[0],
+                es_admin=True,
+                es_super_admin=es_primer_usuario,
             )
-            db.session.add(pend)
+            usuario.set_password(password)
+            db.session.add(usuario)
             db.session.commit()
 
-            # Guardar en sesión (temporalmente) para verificación sin parámetros en URL
-            session['pending_verification_email'] = email
-            session['pending_verification_codigo'] = codigo
-            _enviar_codigo_verificacion(email, codigo)
-            flash('Revisa tu correo: te enviamos un código de 6 dígitos. Introducelo a continuación.', 'success')
-            return redirect(url_for('auth_verificar'))
+            login_user(usuario)
+            flash(f'Bienvenido, {usuario.nombre}. Cuenta creada correctamente.', 'success')
+            return redirect(url_for('index'))
 
         return render_template('auth/registro.html')
-
-    @app.route('/auth/verificar', methods=['GET', 'POST'])
-    def auth_verificar():
-        """
-        Verificación por POST: el correo viene de la sesión (no de la URL).
-        El usuario introduce el código de 6 dígitos; si es correcto, se crea la cuenta en la BD.
-        """
-        email = session.get('pending_verification_email', '').strip().lower()
-        if not email:
-            flash('Sesión de verificación no encontrada. Completa el registro de nuevo.', 'error')
-            return redirect(url_for('auth_registro'))
-
-        if request.method == 'POST':
-            codigo = request.form.get('codigo', '').strip()
-            if len(codigo) != 6 or not codigo.isdigit():
-                flash('El código debe tener 6 dígitos.', 'error')
-                return render_template('auth/verificar.html', email=email)
-
-            # Validar código: sesión o PendingRegistro
-            codigo_ok = (session.get('pending_verification_codigo') == codigo)
-            pend = PendingRegistro.query.filter_by(email=email).order_by(PendingRegistro.creado_at.desc()).first()
-            if not codigo_ok and pend:
-                codigo_ok = (pend.codigo == codigo)
-            if not codigo_ok:
-                flash('Código incorrecto.', 'error')
-                return render_template('auth/verificar.html', email=email)
-            if not pend:
-                flash('No hay registro pendiente para ese correo. Regístrate de nuevo.', 'error')
-                session.pop('pending_verification_email', None)
-                session.pop('pending_verification_codigo', None)
-                return redirect(url_for('auth_registro'))
-
-            # Solo si el código coincide: crear usuario en la BD y limpiar sesión
-            usuario = Usuario(email=pend.email, nombre=pend.nombre, es_admin=True)
-            usuario.password_hash = pend.password_hash
-            db.session.add(usuario)
-            db.session.delete(pend)
-            db.session.commit()
-            session.pop('pending_verification_email', None)
-            session.pop('pending_verification_codigo', None)
-            flash('Cuenta verificada correctamente. Inicia sesión.', 'success')
-            return redirect(url_for('auth_login'))
-
-        return render_template('auth/verificar.html', email=email)
 
     @app.route('/auth/logout')
     @login_required
@@ -664,6 +583,43 @@ def create_app(config_class=Config):
         db.session.commit()
         return True
 
+    @app.route('/admin/usuarios')
+    @login_required
+    @super_admin_required
+    def admin_usuarios():
+        """
+        Panel de gestión de usuarios. Solo Super Admin.
+        Tabla: Nombre, Correo, Rol (Admin o Super Admin).
+        Botón Eliminar solo visible para Super Admin; no puede eliminarse a sí mismo.
+        """
+        usuarios = Usuario.query.order_by(Usuario.id.asc()).all()
+        return render_template('admin/usuarios.html', usuarios=usuarios)
+
+    @app.route('/admin/usuarios/<int:id>/eliminar', methods=['POST'])
+    @login_required
+    @super_admin_required
+    def admin_usuario_eliminar(id):
+        """
+        Elimina un usuario. Solo Super Admin.
+        Si el Super Admin se elimina a sí mismo: sucesión al segundo usuario más antiguo (siguiente id).
+        La app no puede quedar sin Super Admin.
+        """
+        usuario = Usuario.query.get_or_404(id)
+        if usuario.id == current_user.id:
+            # Super Admin eliminando su propia cuenta: sucesión
+            siguiente = Usuario.query.filter(Usuario.id != current_user.id).order_by(Usuario.id.asc()).first()
+            if not siguiente:
+                flash('No puedes eliminarte: eres el único usuario. La app requiere al menos un Super Admin.', 'error')
+                return redirect(url_for('admin_usuarios'))
+            siguiente.es_super_admin = True
+            db.session.commit()
+            logout_user()
+
+        db.session.delete(usuario)
+        db.session.commit()
+        flash('Usuario eliminado correctamente.', 'info')
+        return redirect(url_for('admin_usuarios'))
+
     @app.route('/admin/seed')
     @login_required
     @admin_required
@@ -750,7 +706,6 @@ def create_app(config_class=Config):
     # Crear tablas y migrar columnas si no existen (compatibilidad con BD antiguas)
     # -------------------------------------------------------------------------
     with app.app_context():
-        import os
         from sqlalchemy import text
         os.makedirs(app.instance_path, exist_ok=True)
         db.create_all()
@@ -769,6 +724,22 @@ def create_app(config_class=Config):
                 if columns and col not in columns:
                     db.session.execute(text(def_sql))
                     db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        # Migración usuarios: is_super_admin (jerarquía de roles)
+        try:
+            result = db.session.execute(text("PRAGMA table_info(usuarios)"))
+            columns = [row[1] for row in result.fetchall()]
+            if columns and 'es_super_admin' not in columns:
+                db.session.execute(text("ALTER TABLE usuarios ADD COLUMN es_super_admin BOOLEAN DEFAULT 0"))
+                db.session.commit()
+                # Primer usuario existente pasa a ser Super Admin si no hay ninguno
+                if Usuario.query.filter_by(es_super_admin=True).count() == 0:
+                    primer = Usuario.query.order_by(Usuario.id.asc()).first()
+                    if primer:
+                        primer.es_super_admin = True
+                        db.session.commit()
         except Exception:
             db.session.rollback()
 

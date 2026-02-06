@@ -26,7 +26,11 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Dominio permitido para administradores (validación estricta en login/registro)
+    # -------------------------------------------------------------------------
+    # Regla de oro: SOLO @academicos.mx puede registrarse e iniciar sesión.
+    # Cualquier otro dominio (@alumnos.mx, @gmail.com, etc.) queda bloqueado.
+    # Los usuarios registrados con este dominio tienen automáticamente es_admin=True.
+    # -------------------------------------------------------------------------
     ADMIN_EMAIL_DOMAIN = '@academicos.mx'
 
     # Google Maps (opcional)

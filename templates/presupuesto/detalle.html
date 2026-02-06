@@ -33,16 +33,16 @@
             </div>
             {% endif %}
 
-            {# Solo administradores ven acciones #}
+            {# Solo administradores ven Editar y Borrar (ícono basura); borrado vía borrar_presupuesto #}
             {% if current_user.is_authenticated and current_user.es_administrador %}
             <div class="detalle-card__actions">
                 <a href="{{ url_for('presupuesto_editar', id=presupuesto.id) }}" class="btn btn--secondary">
                     <i class="fas fa-edit"></i> Editar
                 </a>
-                <form action="{{ url_for('presupuesto_eliminar', id=presupuesto.id) }}" method="POST" class="form-inline" onsubmit="return confirm('¿Eliminar este proyecto?');">
+                <form action="{{ url_for('borrar_presupuesto', id=presupuesto.id) }}" method="POST" class="form-inline" onsubmit="return confirm('¿Eliminar este proyecto? Esta acción no se puede deshacer.');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn--danger">
-                        <i class="fas fa-trash"></i> Eliminar
+                        <i class="fas fa-trash"></i> Borrar
                     </button>
                 </form>
             </div>

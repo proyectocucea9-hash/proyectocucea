@@ -57,9 +57,16 @@
             </div>
 
             <div class="form-group">
-                <label for="descripcion">Resumen breve del proyecto</label>
+                <label for="descripcion_corta">Descripción corta (para la tarjeta en carrusel y listado)</label>
+                <input type="text" id="descripcion_corta" name="descripcion_corta" maxlength="300"
+                       value="{{ presupuesto.descripcion_corta if presupuesto else request.form.get('descripcion_corta', '') }}"
+                       placeholder="Una línea breve que se verá en la card...">
+                <small>Máximo 300 caracteres. Si se deja vacío, se usará el inicio de la descripción larga.</small>
+            </div>
+            <div class="form-group">
+                <label for="descripcion">Descripción larga (para el modal detallado)</label>
                 <textarea id="descripcion" name="descripcion" rows="4"
-                          placeholder="Breve descripción del proyecto...">{{ presupuesto.descripcion if presupuesto else request.form.get('descripcion', '') }}</textarea>
+                          placeholder="Descripción completa del proyecto...">{{ presupuesto.descripcion if presupuesto else request.form.get('descripcion', '') }}</textarea>
             </div>
 
             <div class="form-actions">

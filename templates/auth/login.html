@@ -11,7 +11,7 @@
 <div class="auth-container">
     <div class="auth-card">
         <h1>Iniciar sesión</h1>
-        <p class="auth-hint">Solo personal con correo institucional @academicos.mx puede acceder al panel de administración.</p>
+        <p class="auth-hint">Solo correos que terminen en <strong>@academicos.mx</strong> pueden iniciar sesión. Cualquier otro dominio (por ejemplo @alumnos.mx) está bloqueado.</p>
         
         <form method="POST" action="{{ url_for('auth_login') }}" class="auth-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

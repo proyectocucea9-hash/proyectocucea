@@ -1,0 +1,73 @@
+{# ==========================================================================
+   ADMIN - Carrusel de imágenes (Franja 1 - Index)
+   Solo administradores. Lista slides con Editar / Subir (añadir) nueva imagen.
+   ========================================================================== #}
+
+{% extends "base/layout.html" %}
+{% block title %}Editar carrusel{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <header class="form-header">
+        <h1>Carrusel de la página de inicio</h1>
+        <p class="auth-hint">Imágenes que se muestran en la franja de presentación. Editar o subir nuevas.</p>
+    </header>
+
+    {# Formulario para AÑADIR nueva imagen (Subir) - ancla #subir para enlace desde Index #}
+    <div class="card" id="subir" style="margin-bottom: 2rem;">
+        <h2 style="margin: 0 0 1rem; font-size: 1.2rem;">Subir nueva imagen</h2>
+        <form method="POST" class="presupuesto-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="accion" value="crear">
+            <div class="form-group">
+                <label for="imagen_url">URL de la imagen</label>
+                <input type="text" id="imagen_url" name="imagen_url" required
+                       placeholder="https://ejemplo.com/imagen.jpg">
+            </div>
+            <div class="form-group">
+                <label for="titulo_alt">Texto alternativo (accesibilidad)</label>
+                <input type="text" id="titulo_alt" name="titulo_alt" placeholder="Descripción breve">
+            </div>
+            <button type="submit" class="btn btn--primary">Añadir al carrusel</button>
+        </form>
+    </div>
+
+    {# Lista de slides actuales con opción Editar y Eliminar #}
+    <div class="card">
+        <h2 style="margin: 0 0 1rem; font-size: 1.2rem;">Imágenes actuales del carrusel</h2>
+        {% if slides %}
+            <ul class="admin-slides-list">
+                {% for s in slides %}
+                <li class="admin-slide-item">
+                    <img src="{{ s.imagen_url }}" alt="{{ s.titulo_alt or 'Slide' }}" class="admin-slide-preview">
+                    <div class="admin-slide-meta">
+                        <span class="admin-slide-ord">#{{ s.orden + 1 }}</span>
+                        <span>{{ s.titulo_alt or 'Sin texto alt' }}</span>
+                    </div>
+                    <div class="admin-slide-actions">
+                        <form method="POST" action="{{ url_for('admin_carrusel') }}" class="form-inline" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="accion" value="editar">
+                            <input type="hidden" name="slide_id" value="{{ s.id }}">
+                            <input type="text" name="imagen_url" value="{{ s.imagen_url }}" placeholder="URL">
+                            <input type="text" name="titulo_alt" value="{{ s.titulo_alt or '' }}" placeholder="Alt">
+                            <button type="submit" class="btn btn--secondary btn-sm">Editar</button>
+                        </form>
+                        <form action="{{ url_for('admin_carrusel_eliminar', id=s.id) }}" method="POST" class="form-inline" style="display:inline;" onsubmit="return confirm('¿Eliminar esta imagen del carrusel?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn--danger btn-sm">Eliminar</button>
+                        </form>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-muted">No hay imágenes en el carrusel. Usa el formulario de arriba para subir la primera. Mientras no haya ninguna, en Inicio se muestran imágenes por defecto.</p>
+        {% endif %}
+    </div>
+
+    <p style="margin-top: 1.5rem;">
+        <a href="{{ url_for('index') }}" class="btn btn--secondary">← Volver al inicio</a>
+    </p>
+</div>
+{% endblock %}

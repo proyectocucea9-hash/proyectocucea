@@ -45,29 +45,38 @@
         </form>
     </div>
 
-    {# Cuadrícula de tarjetas (cards) #}
+    {# Cuadrícula de tarjetas (cards): sin carrusel ni resalte; filtros por categoría funcionales #}
     <div class="presupuestos-grid">
         {% if presupuestos %}
             {% for p in presupuestos %}
-            <a href="{{ url_for('presupuesto_detalle', id=p.id) }}" class="project-card" aria-label="Ver proyecto {{ p.concepto }}">
-                {# Imagen del proyecto con bordes redondeados #}
-                <div class="project-card__image">
-                    {% if p.imagen_url %}
-                    <img src="{{ p.imagen_url if p.imagen_url.startswith('http') else url_for('static', filename=p.imagen_url) }}" alt="{{ p.concepto }}">
-                    {% else %}
-                    <div class="project-card__placeholder">
-                        <i class="fas fa-image"></i>
-                        <span>Sin imagen</span>
+            <div class="project-card">
+                <a href="{{ url_for('presupuesto_detalle', id=p.id) }}" class="project-card__link" aria-label="Ver proyecto {{ p.concepto }}">
+                    <div class="project-card__image">
+                        {% if p.imagen_url %}
+                        <img src="{{ p.imagen_url if p.imagen_url.startswith('http') else url_for('static', filename=p.imagen_url) }}" alt="{{ p.concepto }}">
+                        {% else %}
+                        <div class="project-card__placeholder">
+                            <i class="fas fa-image"></i>
+                            <span>Sin imagen</span>
+                        </div>
+                        {% endif %}
                     </div>
-                    {% endif %}
+                    <p class="project-card__date">{{ p.fecha.strftime('%d/%m/%Y') }}</p>
+                    <span class="project-card__categoria">{{ p.categoria }}</span>
+                    <h3 class="project-card__title">{{ p.concepto }}</h3>
+                    {% set resumen = p.descripcion_corta or p.descripcion or 'Sin descripción' %}
+                    <p class="project-card__summary">{{ (resumen[:120] + '...') if resumen|length > 120 else resumen }}</p>
+                </a>
+                {% if current_user.is_authenticated and current_user.es_administrador %}
+                <div class="project-card__actions">
+                    <a href="{{ url_for('presupuesto_editar', id=p.id) }}" class="btn btn--secondary btn-sm"><i class="fas fa-edit"></i> Editar</a>
+                    <form action="{{ url_for('borrar_presupuesto', id=p.id) }}" method="POST" class="form-inline" onsubmit="return confirm('¿Eliminar este proyecto?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn--danger btn-sm"><i class="fas fa-trash"></i> Borrar</button>
+                    </form>
                 </div>
-                {# Fecha de creación en texto pequeño #}
-                <p class="project-card__date">{{ p.fecha.strftime('%d/%m/%Y') }}</p>
-                {# Título llamativo #}
-                <h3 class="project-card__title">{{ p.concepto }}</h3>
-                {# Breve resumen #}
-                <p class="project-card__summary">{{ (p.descripcion[:120] + '...') if p.descripcion and p.descripcion|length > 120 else (p.descripcion or 'Sin descripción') }}</p>
-            </a>
+                {% endif %}
+            </div>
             {% endfor %}
         {% else %}
             <div class="presupuestos-empty">

@@ -1,0 +1,50 @@
+{# ==========================================================================
+   ADMIN - Textos editables de la Franja 1 (Index)
+   Solo administradores. Edición in-place de título y párrafos de presentación.
+   ========================================================================== #}
+
+{% extends "base/layout.html" %}
+{% block title %}Editar textos de inicio{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <header class="form-header">
+        <h1>Textos de la sección de presentación</h1>
+        <p class="auth-hint">Estos textos se muestran en la página de inicio (franja 1). Déjalos vacíos para usar el texto por defecto.</p>
+    </header>
+
+    <div class="card">
+        <form method="POST" class="presupuesto-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label for="index_franja1_titulo">Título principal</label>
+                <input type="text" id="index_franja1_titulo" name="index_franja1_titulo"
+                       value="{{ contenido.get('index_franja1_titulo', '') }}"
+                       placeholder="Transparencia Presupuestaria">
+            </div>
+            <div class="form-group">
+                <label for="index_franja1_subtitulo">Subtítulo</label>
+                <input type="text" id="index_franja1_subtitulo" name="index_franja1_subtitulo"
+                       value="{{ contenido.get('index_franja1_subtitulo', '') }}"
+                       placeholder="Centro Universitario de Ciencias Económico Administrativas">
+            </div>
+            <div class="form-group">
+                <label for="index_franja1_parrafo1">Primer párrafo</label>
+                <textarea id="index_franja1_parrafo1" name="index_franja1_parrafo1" rows="3">{{ contenido.get('index_franja1_parrafo1', '') }}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="index_franja1_parrafo2">Segundo párrafo</label>
+                <textarea id="index_franja1_parrafo2" name="index_franja1_parrafo2" rows="3">{{ contenido.get('index_franja1_parrafo2', '') }}</textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary">Guardar textos</button>
+                <a href="{{ url_for('index') }}" class="btn btn--secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+
+    <p style="margin-top: 1.5rem;">
+        <a href="{{ url_for('index') }}" class="btn btn--secondary">← Volver al inicio</a>
+    </p>
+</div>
+{% endblock %}

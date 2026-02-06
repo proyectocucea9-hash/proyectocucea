@@ -19,7 +19,8 @@ class Usuario(UserMixin, db.Model):
     """
     Tabla de usuarios del sistema.
     - Solo correos que terminen en @academicos.mx pueden registrarse e iniciar sesión.
-    - Los usuarios con es_admin=True tienen permisos para agregar/editar presupuestos.
+    - Cualquier otro dominio (@alumnos.mx, etc.) está bloqueado en login y registro.
+    - Los usuarios registrados con @academicos.mx tienen es_admin=True automáticamente.
     """
     __tablename__ = 'usuarios'
 
@@ -29,7 +30,7 @@ class Usuario(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     nombre = db.Column(db.String(100), nullable=False)
 
-    # Permisos: True si el usuario es administrador (solo @academicos.mx)
+    # Permisos: True si el usuario es administrador (solo correos @academicos.mx)
     es_admin = db.Column(db.Boolean, default=False, nullable=False)
 
     # Auditoría
@@ -60,16 +61,17 @@ class Usuario(UserMixin, db.Model):
 
 # =============================================================================
 # MODELO: Presupuesto (Proyecto)
-# Representa cada proyecto o ítem presupuestario con imagen, fecha y descripción.
+# Representa cada proyecto o ítem presupuestario con imagen, fecha, descripción y reacciones.
 # =============================================================================
 
 class Presupuesto(db.Model):
     """
     Tabla de proyectos/ítems presupuestarios.
-    Cada registro muestra un proyecto con su imagen, monto, categoría y descripción.
-    - imagen_url: Ruta o URL de la imagen del proyecto (para cards)
-    - concepto: Título del proyecto
-    - descripcion: Resumen breve del proyecto
+    - imagen_url: Ruta o URL de la imagen (para cards y modal).
+    - concepto: Título del proyecto.
+    - descripcion_corta: Texto breve para la tarjeta (card) en carrusel y grid.
+    - descripcion: Descripción larga para el modal detallado.
+    - likes / dislikes: Contadores de reacciones (públicos, sin restricción por usuario).
     """
     __tablename__ = 'presupuestos'
 
@@ -78,17 +80,81 @@ class Presupuesto(db.Model):
 
     # Contenido del proyecto
     concepto = db.Column(db.String(200), nullable=False)  # Título del proyecto
-    descripcion = db.Column(db.Text)  # Resumen breve
+    descripcion_corta = db.Column(db.String(300))  # Resumen breve para la card (si vacío se trunca descripcion)
+    descripcion = db.Column(db.Text)  # Descripción larga para el modal
     imagen_url = db.Column(db.String(500))  # Ruta o URL de imagen (ej: img/proyecto1.jpg)
 
     # Datos presupuestarios
     monto = db.Column(db.Float, nullable=False)
     categoria = db.Column(db.String(100), nullable=False)
-    fecha = db.Column(db.Date, nullable=False)  # Fecha de creación del proyecto
+    fecha = db.Column(db.Date, nullable=False)  # Fecha del proyecto
+
+    # Reacciones (públicas: cualquier visitante puede sumar like/dislike)
+    likes = db.Column(db.Integer, default=0, nullable=False)
+    dislikes = db.Column(db.Integer, default=0, nullable=False)
 
     # Auditoría
     fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Relación con comentarios (estilo Facebook): un presupuesto tiene muchos comentarios
+    comentarios = db.relationship('Comentario', backref='presupuesto', lazy='dynamic', order_by='Comentario.fecha_creacion')
+
     def __repr__(self):
         """Representación en consola para debugging."""
         return f'<Presupuesto {self.concepto}: ${self.monto}>'
+
+
+# =============================================================================
+# MODELO: Comentario
+# Comentarios por presupuesto (estilo Facebook): autor + contenido + fecha.
+# =============================================================================
+
+class Comentario(db.Model):
+    """
+    Comentarios asociados a un presupuesto.
+    Se muestran en el modal detallado; cualquier visitante puede escribir (autor opcional).
+    """
+    __tablename__ = 'comentarios'
+
+    id = db.Column(db.Integer, primary_key=True)
+    presupuesto_id = db.Column(db.Integer, db.ForeignKey('presupuestos.id'), nullable=False)
+    autor = db.Column(db.String(120), default='Anónimo')  # Nombre o "Anónimo"
+    contenido = db.Column(db.Text, nullable=False)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# =============================================================================
+# MODELO: CarruselSlide (Edición in-place - Franja 1)
+# Imágenes del carrusel de la página de inicio; el admin puede Editar/Subir.
+# =============================================================================
+
+class CarruselSlide(db.Model):
+    """
+    Cada slide del carrusel de la franja de presentación (index).
+    orden: posición en el carrusel (0, 1, 2...).
+    imagen_url: URL o ruta de la imagen.
+    """
+    __tablename__ = 'carrusel_slides'
+
+    id = db.Column(db.Integer, primary_key=True)
+    orden = db.Column(db.Integer, default=0, nullable=False)
+    imagen_url = db.Column(db.String(500), nullable=False)
+    titulo_alt = db.Column(db.String(200))  # Texto alternativo para accesibilidad
+
+
+# =============================================================================
+# MODELO: ContenidoSite (Edición in-place - Textos de descripción)
+# Textos editables de la página de inicio (título, párrafos).
+# =============================================================================
+
+class ContenidoSite(db.Model):
+    """
+    Contenido editable por clave (key-value).
+    Claves ejemplo: index_franja1_titulo, index_franja1_parrafo1, index_franja1_parrafo2.
+    Si no existe la clave, la plantilla usa texto por defecto.
+    """
+    __tablename__ = 'contenido_site'
+
+    clave = db.Column(db.String(80), primary_key=True)
+    valor = db.Column(db.Text, nullable=False)
+    fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

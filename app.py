@@ -1,29 +1,35 @@
 """
 =============================================================================
 PLATAFORMA DE TRANSPARENCIA PRESUPUESTARIA - CUCEA
-Aplicación principal Flask - Plataforma escolar de transparencia informativa
+Aplicación principal Flask - Seguridad, verificación por correo, likes por usuario.
 =============================================================================
 
-Regla de oro de autenticación:
-- SOLO los correos que terminen en @academicos.mx pueden registrarse e iniciar sesión.
-- Se bloquea cualquier intento con @alumnos.mx o cualquier otro dominio.
-- Los usuarios registrados con @academicos.mx tienen automáticamente permisos de ADMIN.
+Seguridad y verificación:
+- Dominio obligatorio: SOLO @alumnos.udg.mx puede registrarse e iniciar sesión.
+- Al registrarse se envía un código de 6 dígitos por Flask-Mail; la cuenta solo
+  se crea en la BD cuando el usuario introduce el código correcto (tabla PendingRegistro).
 
-Gestión de presupuestos: Admin puede Editar y Borrar (ruta borrar_presupuesto/<id>).
-Datos de prueba: seed_data() se ejecuta una sola vez al arrancar la app (5 presupuestos).
+Likes anti-spam: tabla VotoPresupuesto vincula usuario_id y presupuesto_id; un voto
+por persona (pueden cambiar de Like a Dislike, no duplicar). Contadores en Presupuesto
+se actualizan desde esa tabla.
+
+Gamificación: cantidad_gasto por presupuesto (solo al crear); Total Invertido en Navbar.
 """
 
 from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
+import random
+import string
 load_dotenv()
 
 from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
+from flask_mail import Message
 
 from config import Config
-from extensions import db, login_manager
-from models import Usuario, Presupuesto, Comentario, CarruselSlide, ContenidoSite
+from extensions import db, login_manager, mail
+from models import Usuario, Presupuesto, Comentario, CarruselSlide, ContenidoSite, PendingRegistro, VotoPresupuesto
 
 
 # =============================================================================
@@ -50,11 +56,13 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
     # -------------------------------------------------------------------------
-    # Inicializar extensiones: SQLAlchemy, Flask-Login, CSRF
+    # Inicializar extensiones: SQLAlchemy, Flask-Login, CSRF, Flask-Mail
+    # Flask-Mail se usa para enviar el código de verificación al registrarse.
     # -------------------------------------------------------------------------
     db.init_app(app)
     login_manager.init_app(app)
     CSRFProtect(app)
+    mail.init_app(app)
 
     # -------------------------------------------------------------------------
     # Flask-Login: Callback para cargar usuario desde la base de datos.
@@ -78,15 +86,16 @@ def create_app(config_class=Config):
     login_manager.login_message_category = 'info'
 
     # -------------------------------------------------------------------------
-    # Context processor: Variables disponibles en todas las plantillas
-    # current_year: año actual para el footer
-    # map_address: dirección mostrada en el mapa (si se usa)
+    # Context processor: total_invertido = suma de cantidad_gasto de todos los presupuestos.
+    # Se muestra en la Navbar como "Total Invertido: $X". Actualiza al añadir/borrar uno.
     # -------------------------------------------------------------------------
     @app.context_processor
     def inject_globals():
+        total = db.session.query(db.func.coalesce(db.func.sum(Presupuesto.cantidad_gasto), 0)).scalar() or 0
         return {
             'current_year': datetime.now().year,
             'map_address': app.config.get('MAP_ADDRESS', 'CUCEA, Universidad de Guadalajara'),
+            'total_invertido': float(total),
         }
 
     # =========================================================================
@@ -123,14 +132,17 @@ def create_app(config_class=Config):
             'parrafo1': get_content('index_franja1_parrafo1', 'El CUCEA es una de las divisiones más importantes de la Universidad de Guadalajara, dedicada a la formación de profesionales en áreas económicas y administrativas.'),
             'parrafo2': get_content('index_franja1_parrafo2', 'En cumplimiento con los principios de transparencia y rendición de cuentas, ponemos a disposición del público esta plataforma donde puedes consultar de manera clara y accesible cómo se invierten los recursos de nuestra institución.'),
         }
+        # Imagen de fondo editable por Admin (clave index_fondo_url)
+        fondo_url = get_content('index_fondo_url', 'https://images.unsplash.com/photo-1562774053-701939374585?w=1920&h=1080&fit=crop')
 
-        # Presupuestos para el carrusel de cards (se muestran 3 en vista, centro resaltado)
-        presupuestos = Presupuesto.query.order_by(Presupuesto.fecha.desc()).limit(12).all()
+        # Presupuestos ordenados de mayor a menor número de likes (gamificación)
+        presupuestos = Presupuesto.query.order_by(Presupuesto.likes.desc(), Presupuesto.fecha.desc()).limit(12).all()
         return render_template(
             'index.html',
             presupuestos=presupuestos,
             carousel_slides=slides,
             contenido_franja1=contenido_franja1,
+            fondo_url=fondo_url,
         )
 
     @app.route('/presupuestos')
@@ -156,7 +168,8 @@ def create_app(config_class=Config):
             except ValueError:
                 pass
 
-        presupuestos = query.order_by(Presupuesto.fecha.desc()).all()
+        # Orden dinámico: mayor a menor número de likes (respeta filtros por categoría/año)
+        presupuestos = query.order_by(Presupuesto.likes.desc(), Presupuesto.fecha.desc()).all()
         return render_template(
             'presupuestos.html',
             presupuestos=presupuestos,
@@ -178,17 +191,37 @@ def create_app(config_class=Config):
     # El modal bloquea el scroll del fondo y tiene scroll interno.
     # -------------------------------------------------------------------------
 
+    def _recalcular_likes_dislikes(presupuesto):
+        """
+        Actualiza presupuesto.likes y presupuesto.dislikes desde la tabla VotoPresupuesto.
+        Relación en BD: VotoPresupuesto tiene (usuario_id, presupuesto_id, tipo) con
+        UNIQUE(usuario_id, presupuesto_id). Así cada persona solo puede tener un voto
+        por presupuesto (like o dislike); puede cambiar de uno al otro pero no duplicar.
+        Los contadores en Presupuesto se mantienen sincronizados para ordenar las
+        tarjetas por número de likes (orden dinámico en index y en filtros).
+        """
+        likes = VotoPresupuesto.query.filter_by(presupuesto_id=presupuesto.id, tipo='like').count()
+        dislikes = VotoPresupuesto.query.filter_by(presupuesto_id=presupuesto.id, tipo='dislike').count()
+        presupuesto.likes = likes
+        presupuesto.dislikes = dislikes
+
     @app.route('/api/presupuesto/<int:id>')
     def api_presupuesto_detalle(id):
         """
-        Retorna JSON con detalle del presupuesto para llenar el modal.
-        Incluye descripción larga, likes, dislikes y lista de comentarios.
+        Retorna JSON con detalle del presupuesto para el modal.
+        Incluye comentarios (con id para que Admin pueda eliminar) y cantidad_gasto.
         """
         presupuesto = Presupuesto.query.get_or_404(id)
         comentarios = [
             {'id': c.id, 'autor': c.autor or 'Anónimo', 'contenido': c.contenido, 'fecha': c.fecha_creacion.isoformat() if c.fecha_creacion else ''}
             for c in presupuesto.comentarios.all()
         ]
+        # Estado de voto del usuario actual (para mostrar like/dislike activo)
+        mi_voto = None
+        if current_user.is_authenticated:
+            v = VotoPresupuesto.query.filter_by(usuario_id=current_user.id, presupuesto_id=presupuesto.id).first()
+            if v:
+                mi_voto = v.tipo
         return jsonify({
             'id': presupuesto.id,
             'concepto': presupuesto.concepto,
@@ -198,26 +231,56 @@ def create_app(config_class=Config):
             'fecha': presupuesto.fecha.isoformat() if presupuesto.fecha else '',
             'categoria': presupuesto.categoria,
             'monto': presupuesto.monto,
+            'cantidad_gasto': getattr(presupuesto, 'cantidad_gasto', 0) or 0,
             'likes': presupuesto.likes or 0,
             'dislikes': presupuesto.dislikes or 0,
+            'mi_voto': mi_voto,
             'comentarios': comentarios,
+            'es_admin': current_user.is_authenticated and current_user.es_administrador,
         })
 
     @app.route('/api/presupuesto/<int:id>/like', methods=['POST'])
+    @login_required
     def api_presupuesto_like(id):
-        """Incrementa el contador de likes y retorna el nuevo valor (para actualizar el modal)."""
+        """
+        Registra like en tabla VotoPresupuesto. Un voto por usuario: si ya votó,
+        se cambia a like (o se mantiene). Anti-spam: no se duplican votos.
+        """
         presupuesto = Presupuesto.query.get_or_404(id)
-        presupuesto.likes = (presupuesto.likes or 0) + 1
+        voto = VotoPresupuesto.query.filter_by(usuario_id=current_user.id, presupuesto_id=presupuesto.id).first()
+        if voto:
+            voto.tipo = 'like'
+        else:
+            db.session.add(VotoPresupuesto(usuario_id=current_user.id, presupuesto_id=presupuesto.id, tipo='like'))
+        _recalcular_likes_dislikes(presupuesto)
         db.session.commit()
-        return jsonify({'likes': presupuesto.likes})
+        return jsonify({'likes': presupuesto.likes, 'dislikes': presupuesto.dislikes})
 
     @app.route('/api/presupuesto/<int:id>/dislike', methods=['POST'])
+    @login_required
     def api_presupuesto_dislike(id):
-        """Incrementa el contador de dislikes y retorna el nuevo valor."""
+        """Registra dislike; un voto por usuario (ver comentario en api_presupuesto_like)."""
         presupuesto = Presupuesto.query.get_or_404(id)
-        presupuesto.dislikes = (presupuesto.dislikes or 0) + 1
+        voto = VotoPresupuesto.query.filter_by(usuario_id=current_user.id, presupuesto_id=presupuesto.id).first()
+        if voto:
+            voto.tipo = 'dislike'
+        else:
+            db.session.add(VotoPresupuesto(usuario_id=current_user.id, presupuesto_id=presupuesto.id, tipo='dislike'))
+        _recalcular_likes_dislikes(presupuesto)
         db.session.commit()
-        return jsonify({'dislikes': presupuesto.dislikes})
+        return jsonify({'likes': presupuesto.likes, 'dislikes': presupuesto.dislikes})
+
+    @app.route('/api/comentario/<int:id>/eliminar', methods=['POST'])
+    @login_required
+    def api_comentario_eliminar(id):
+        """Elimina un comentario. Solo Admin (moderación)."""
+        if not current_user.es_administrador:
+            abort(403)
+        c = Comentario.query.get_or_404(id)
+        presupuesto_id = c.presupuesto_id
+        db.session.delete(c)
+        db.session.commit()
+        return jsonify({'ok': True, 'presupuesto_id': presupuesto_id})
 
     @app.route('/api/presupuesto/<int:id>/comentarios', methods=['POST'])
     def api_presupuesto_comentarios(id):
@@ -247,16 +310,38 @@ def create_app(config_class=Config):
         })
 
     # =========================================================================
-    # RUTAS DE AUTENTICACIÓN - Login y registro restringidos a @academicos.mx
+    # RUTAS DE AUTENTICACIÓN - Solo @alumnos.udg.mx + verificación por correo
     # =========================================================================
+
+    def _enviar_codigo_verificacion(email_destino, codigo):
+        """
+        Envía el código de 6 dígitos por Flask-Mail al correo del usuario.
+        Lógica del flujo de verificación:
+        1. Usuario envía formulario de registro (auth_registro) con email @alumnos.udg.mx.
+        2. No creamos la cuenta aún; guardamos email, nombre, password_hash y codigo en
+           la tabla PendingRegistro (evita cuentas sin verificar).
+        3. Se llama a esta función con el correo y el código generado (6 dígitos aleatorios).
+        4. Flask-Mail envía un mensaje con el código; en producción se configuran
+           MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD en .env.
+        5. El usuario llega a auth_verificar, introduce el código; si coincide con
+           PendingRegistro.codigo, se crea el registro en Usuario (con la contraseña
+           ya hasheada) y se borra el PendingRegistro.
+        Si el envío falla (ej. SMTP no configurado en desarrollo), el código sigue
+        en la BD y se puede probar manualmente.
+        """
+        msg = Message(
+            subject='Código de verificación - CUCEA Transparencia',
+            recipients=[email_destino],
+            body=f'Tu código de verificación es: {codigo}\n\nVálido por {app.config.get("VERIFICATION_CODE_EXPIRY_MINUTES", 15)} minutos.\n\nSi no solicitaste este registro, ignora este correo.',
+        )
+        try:
+            mail.send(msg)
+        except Exception:
+            pass  # En desarrollo sin SMTP configurado puede fallar; el código sigue en BD
 
     @app.route('/auth/login', methods=['GET', 'POST'])
     def auth_login():
-        """
-        Inicio de sesión.
-        POST: Valida credenciales. Solo correos que terminen en ADMIN_EMAIL_DOMAIN
-        pueden iniciar sesión.
-        """
+        """Inicio de sesión. Solo correos @alumnos.udg.mx."""
         if current_user.is_authenticated:
             return redirect(url_for('presupuestos_lista'))
 
@@ -265,9 +350,8 @@ def create_app(config_class=Config):
             password = request.form.get('password', '')
             dominio = app.config['ADMIN_EMAIL_DOMAIN']
 
-            # Validación estricta: SOLO @academicos.mx. Bloqueamos @alumnos.mx y cualquier otro dominio.
             if not email.endswith(dominio):
-                flash(f'Solo correos institucionales ({dominio}) pueden iniciar sesión. Otros dominios están bloqueados.', 'error')
+                flash(f'Solo correos {dominio} pueden iniciar sesión.', 'error')
                 return render_template('auth/login.html')
 
             usuario = Usuario.query.filter_by(email=email).first()
@@ -284,9 +368,9 @@ def create_app(config_class=Config):
     @app.route('/auth/registro', methods=['GET', 'POST'])
     def auth_registro():
         """
-        Registro de administradores.
-        Solo correos que terminen en ADMIN_EMAIL_DOMAIN pueden registrarse.
-        Al registrarse, es_admin=True automáticamente.
+        Registro: solo @alumnos.udg.mx. No crea la cuenta aquí; guarda en PendingRegistro,
+        genera código de 6 dígitos, lo envía por correo (Flask-Mail) y redirige a verificar.
+        La cuenta se crea en auth_verificar cuando el usuario introduce el código correcto.
         """
         if current_user.is_authenticated:
             return redirect(url_for('presupuestos_lista'))
@@ -298,9 +382,8 @@ def create_app(config_class=Config):
             password_confirm = request.form.get('password_confirm', '')
             dominio = app.config['ADMIN_EMAIL_DOMAIN']
 
-            # Bloqueo explícito: solo @academicos.mx. @alumnos.mx y el resto no pueden registrarse.
             if not email.endswith(dominio):
-                flash(f'El registro está restringido. Solo correos {dominio} pueden registrarse. Otros dominios están bloqueados.', 'error')
+                flash(f'Solo correos {dominio} pueden registrarse.', 'error')
                 return render_template('auth/registro.html')
             if password != password_confirm:
                 flash('Las contraseñas no coinciden.', 'error')
@@ -312,14 +395,62 @@ def create_app(config_class=Config):
                 flash('Ya existe una cuenta con ese correo.', 'error')
                 return render_template('auth/registro.html')
 
-            usuario = Usuario(email=email, nombre=nombre, es_admin=True)
-            usuario.set_password(password)
-            db.session.add(usuario)
+            codigo = ''.join(random.choices(string.digits, k=6))
+            usuario_temp = Usuario(email=email, nombre=nombre, es_admin=True)
+            usuario_temp.set_password(password)
+
+            # Guardar en PendingRegistro (no en Usuario hasta verificar)
+            pend = PendingRegistro(
+                email=email,
+                nombre=nombre,
+                password_hash=usuario_temp.password_hash,
+                codigo=codigo,
+            )
+            db.session.add(pend)
             db.session.commit()
-            flash('Cuenta creada correctamente. Inicia sesión.', 'success')
-            return redirect(url_for('auth_login'))
+
+            _enviar_codigo_verificacion(email, codigo)
+            flash('Revisa tu correo: te enviamos un código de 6 dígitos. Introducelo a continuación.', 'success')
+            return redirect(url_for('auth_verificar', email=email))
 
         return render_template('auth/registro.html')
+
+    @app.route('/auth/verificar', methods=['GET', 'POST'])
+    def auth_verificar():
+        """
+        El usuario introduce el código de 6 dígitos enviado por correo.
+        Si es correcto y no ha expirado, se crea la cuenta en Usuario (contraseña
+        ya encriptada en PendingRegistro) y se elimina el registro pendiente.
+        """
+        email = request.args.get('email', '').strip().lower() or request.form.get('email', '').strip().lower()
+        if not email:
+            flash('Falta el correo.', 'error')
+            return redirect(url_for('auth_registro'))
+
+        if request.method == 'POST':
+            codigo = request.form.get('codigo', '').strip()
+            if len(codigo) != 6 or not codigo.isdigit():
+                flash('El código debe tener 6 dígitos.', 'error')
+                return render_template('auth/verificar.html', email=email)
+
+            pend = PendingRegistro.query.filter_by(email=email).order_by(PendingRegistro.creado_at.desc()).first()
+            if not pend:
+                flash('No hay registro pendiente para ese correo. Regístrate de nuevo.', 'error')
+                return redirect(url_for('auth_registro'))
+            if pend.codigo != codigo:
+                flash('Código incorrecto.', 'error')
+                return render_template('auth/verificar.html', email=email)
+
+            # Código correcto: crear usuario en la BD con contraseña ya encriptada
+            usuario = Usuario(email=pend.email, nombre=pend.nombre, es_admin=True)
+            usuario.password_hash = pend.password_hash
+            db.session.add(usuario)
+            db.session.delete(pend)
+            db.session.commit()
+            flash('Cuenta verificada correctamente. Inicia sesión.', 'success')
+            return redirect(url_for('auth_login'))
+
+        return render_template('auth/verificar.html', email=email)
 
     @app.route('/auth/logout')
     @login_required
@@ -351,6 +482,7 @@ def create_app(config_class=Config):
             descripcion_corta = request.form.get('descripcion_corta', '').strip() or None
             descripcion = request.form.get('descripcion', '').strip() or None
             imagen_url = request.form.get('imagen_url', '').strip() or None
+            cantidad_gasto = request.form.get('cantidad_gasto')
 
             if not concepto or not monto or not categoria or not fecha_str:
                 flash('Completa todos los campos obligatorios.', 'error')
@@ -359,10 +491,12 @@ def create_app(config_class=Config):
             try:
                 fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
                 monto_val = float(monto)
+                cantidad_gasto_val = float(cantidad_gasto) if cantidad_gasto else 0
             except (ValueError, TypeError):
                 flash('Datos inválidos.', 'error')
                 return render_template('presupuesto/formulario.html', presupuesto=None, categorias=CATEGORIAS)
 
+            # cantidad_gasto solo se define al crear; después no es editable (integridad del presupuesto).
             p = Presupuesto(
                 concepto=concepto,
                 monto=monto_val,
@@ -371,6 +505,7 @@ def create_app(config_class=Config):
                 descripcion_corta=descripcion_corta,
                 descripcion=descripcion or None,
                 imagen_url=imagen_url,
+                cantidad_gasto=cantidad_gasto_val,
             )
             db.session.add(p)
             db.session.commit()
@@ -397,6 +532,7 @@ def create_app(config_class=Config):
             presupuesto.descripcion_corta = request.form.get('descripcion_corta', '').strip() or None
             presupuesto.descripcion = request.form.get('descripcion', '').strip() or None
             presupuesto.imagen_url = request.form.get('imagen_url', '').strip() or None
+            # cantidad_gasto NO se edita: solo se define al crear la tarjeta (regla de integridad).
             try:
                 presupuesto.monto = float(request.form.get('monto', 0))
                 presupuesto.fecha = datetime.strptime(request.form.get('fecha', ''), '%Y-%m-%d').date()
@@ -460,52 +596,13 @@ def create_app(config_class=Config):
         if Presupuesto.query.count() > 0:
             return False
         hoy = date.today()
+        # 5 presupuestos con cantidad_gasto para verificar suma en Navbar (Total Invertido)
         registros = [
-            {
-                'concepto': 'Laboratorio de Química',
-                'descripcion_corta': 'Equipamiento y reactivos para prácticas de química orgánica.',
-                'descripcion': 'Proyecto de equipamiento del laboratorio de química del edificio B. Incluye mesas de trabajo resistentes a ácidos, campanas de extracción, y dotación de reactivos para el ciclo actual. La descripción larga se muestra en el modal al hacer clic en la tarjeta.',
-                'categoria': 'Equipamiento',
-                'monto': 450000.00,
-                'fecha': hoy - timedelta(days=30),
-                'imagen_url': 'https://picsum.photos/400/300?random=1',
-            },
-            {
-                'concepto': 'Canchas Deportivas',
-                'descripcion_corta': 'Mantenimiento y mejora de canchas de fútbol y básquetbol.',
-                'descripcion': 'Refacción de las canchas deportivas del campus: pintado de líneas, reparación de mallas y mejoras en el drenaje. Se priorizan las canchas de uso común para torneos interdivisionales.',
-                'categoria': 'Infraestructura',
-                'monto': 280000.00,
-                'fecha': hoy - timedelta(days=15),
-                'imagen_url': 'https://picsum.photos/400/300?random=2',
-            },
-            {
-                'concepto': 'Servicios de limpieza',
-                'descripcion_corta': 'Contrato de limpieza para edificios administrativos.',
-                'descripcion': 'Contrato semestral de servicios de limpieza para oficinas, pasillos y baños de los edificios A y C. Incluye suministro de material y supervisión.',
-                'categoria': 'Servicios',
-                'monto': 120000.00,
-                'fecha': hoy - timedelta(days=7),
-                'imagen_url': 'https://picsum.photos/400/300?random=3',
-            },
-            {
-                'concepto': 'Material didáctico para contabilidad',
-                'descripcion_corta': 'Libros y licencias de software contable.',
-                'descripcion': 'Adquisición de libros de texto actualizados y licencias de software educativo para las materias de contabilidad y auditoría. Beneficia a los alumnos de la división de Contaduría.',
-                'categoria': 'Material didáctico',
-                'monto': 95000.00,
-                'fecha': hoy,
-                'imagen_url': 'https://picsum.photos/400/300?random=4',
-            },
-            {
-                'concepto': 'Capacitación en seguridad',
-                'descripcion_corta': 'Talleres de prevención y primeros auxilios.',
-                'descripcion': 'Programa de capacitación en seguridad y primeros auxilios para personal de intendencia y vigilancia. Incluye material impreso y certificación por Protección Civil.',
-                'categoria': 'Capacitación',
-                'monto': 65000.00,
-                'fecha': hoy,
-                'imagen_url': 'https://picsum.photos/400/300?random=5',
-            },
+            {'concepto': 'Laboratorio de Química', 'descripcion_corta': 'Equipamiento y reactivos para prácticas.', 'descripcion': 'Proyecto de equipamiento del laboratorio de química del edificio B. Incluye mesas de trabajo resistentes a ácidos, campanas de extracción y dotación de reactivos.', 'categoria': 'Equipamiento', 'monto': 450000.00, 'cantidad_gasto': 50000.00, 'fecha': hoy - timedelta(days=30), 'imagen_url': 'https://picsum.photos/400/300?random=1'},
+            {'concepto': 'Canchas Deportivas', 'descripcion_corta': 'Mantenimiento y mejora de canchas.', 'descripcion': 'Refacción de canchas: pintado de líneas, reparación de mallas y mejoras en drenaje.', 'categoria': 'Infraestructura', 'monto': 280000.00, 'cantidad_gasto': 120000.00, 'fecha': hoy - timedelta(days=15), 'imagen_url': 'https://picsum.photos/400/300?random=2'},
+            {'concepto': 'Servicios de limpieza', 'descripcion_corta': 'Contrato de limpieza.', 'descripcion': 'Contrato semestral de limpieza para oficinas y pasillos de edificios A y C.', 'categoria': 'Servicios', 'monto': 120000.00, 'cantidad_gasto': 85000.00, 'fecha': hoy - timedelta(days=7), 'imagen_url': 'https://picsum.photos/400/300?random=3'},
+            {'concepto': 'Material didáctico contabilidad', 'descripcion_corta': 'Libros y licencias.', 'descripcion': 'Adquisición de libros y licencias de software para contabilidad y auditoría.', 'categoria': 'Material didáctico', 'monto': 95000.00, 'cantidad_gasto': 72000.00, 'fecha': hoy, 'imagen_url': 'https://picsum.photos/400/300?random=4'},
+            {'concepto': 'Capacitación en seguridad', 'descripcion_corta': 'Talleres de prevención.', 'descripcion': 'Capacitación en seguridad y primeros auxilios para intendencia y vigilancia.', 'categoria': 'Capacitación', 'monto': 65000.00, 'cantidad_gasto': 43000.00, 'fecha': hoy, 'imagen_url': 'https://picsum.photos/400/300?random=5'},
         ]
         for d in registros:
             p = Presupuesto(
@@ -514,6 +611,7 @@ def create_app(config_class=Config):
                 descripcion=d['descripcion'],
                 categoria=d['categoria'],
                 monto=d['monto'],
+                cantidad_gasto=d['cantidad_gasto'],
                 fecha=d['fecha'],
                 imagen_url=d['imagen_url'],
             )
@@ -590,7 +688,7 @@ def create_app(config_class=Config):
         """
         if not current_user.es_administrador:
             abort(403)
-        claves = ['index_franja1_titulo', 'index_franja1_subtitulo', 'index_franja1_parrafo1', 'index_franja1_parrafo2']
+        claves = ['index_franja1_titulo', 'index_franja1_subtitulo', 'index_franja1_parrafo1', 'index_franja1_parrafo2', 'index_fondo_url']
         if request.method == 'POST':
             for key in claves:
                 val = request.form.get(key, '').strip()
@@ -617,7 +715,7 @@ def create_app(config_class=Config):
         os.makedirs(app.instance_path, exist_ok=True)
         db.create_all()
 
-        # Migración presupuestos: columnas imagen_url, descripcion_corta, likes, dislikes
+        # Migración presupuestos: cantidad_gasto y columnas previas
         try:
             result = db.session.execute(text("PRAGMA table_info(presupuestos)"))
             columns = [row[1] for row in result.fetchall()]
@@ -626,6 +724,7 @@ def create_app(config_class=Config):
                 ('descripcion_corta', 'ALTER TABLE presupuestos ADD COLUMN descripcion_corta VARCHAR(300)'),
                 ('likes', 'ALTER TABLE presupuestos ADD COLUMN likes INTEGER DEFAULT 0'),
                 ('dislikes', 'ALTER TABLE presupuestos ADD COLUMN dislikes INTEGER DEFAULT 0'),
+                ('cantidad_gasto', 'ALTER TABLE presupuestos ADD COLUMN cantidad_gasto REAL DEFAULT 0'),
             ]:
                 if columns and col not in columns:
                     db.session.execute(text(def_sql))

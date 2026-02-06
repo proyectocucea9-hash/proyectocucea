@@ -64,6 +64,7 @@
                     <p class="project-card__date">{{ p.fecha.strftime('%d/%m/%Y') }}</p>
                     <span class="project-card__categoria">{{ p.categoria }}</span>
                     <h3 class="project-card__title">{{ p.concepto }}</h3>
+                    {% if p.cantidad_gasto %}<p class="project-card__gasto">Gasto: ${{ "{:,.0f}".format(p.cantidad_gasto) }}</p>{% endif %}
                     {% set resumen = p.descripcion_corta or p.descripcion or 'Sin descripción' %}
                     <p class="project-card__summary">{{ (resumen[:120] + '...') if resumen|length > 120 else resumen }}</p>
                 </a>

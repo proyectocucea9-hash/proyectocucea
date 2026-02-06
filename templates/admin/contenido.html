@@ -36,6 +36,13 @@
                 <label for="index_franja1_parrafo2">Segundo párrafo</label>
                 <textarea id="index_franja1_parrafo2" name="index_franja1_parrafo2" rows="3">{{ contenido.get('index_franja1_parrafo2', '') }}</textarea>
             </div>
+            <div class="form-group" id="fondo">
+                <label for="index_fondo_url">URL de imagen de fondo (Index)</label>
+                <input type="text" id="index_fondo_url" name="index_fondo_url"
+                       value="{{ contenido.get('index_fondo_url', '') }}"
+                       placeholder="https://...">
+                <small>Imagen fija de fondo de la página de inicio (parallax).</small>
+            </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn--primary">Guardar textos</button>
                 <a href="{{ url_for('index') }}" class="btn btn--secondary">Cancelar</a>

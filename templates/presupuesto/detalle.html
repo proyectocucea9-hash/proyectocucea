@@ -27,6 +27,7 @@
             <h1 class="detalle-card__title">{{ presupuesto.concepto }}</h1>
             <span class="detalle-card__badge">{{ presupuesto.categoria }}</span>
             <p class="detalle-card__monto">${{ "{:,.2f}".format(presupuesto.monto) }}</p>
+            {% if presupuesto.cantidad_gasto %}<p class="detalle-card__gasto">Cantidad de gasto: ${{ "{:,.0f}".format(presupuesto.cantidad_gasto) }}</p>{% endif %}
             {% if presupuesto.descripcion %}
             <div class="detalle-card__descripcion">
                 {{ presupuesto.descripcion }}

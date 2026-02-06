@@ -35,7 +35,10 @@
                 <span class="navbar__subtitle">Transparencia</span>
             </a>
 
-            <!-- Enlaces de navegación - centrados y repartidos -->
+            <!-- Total Invertido: suma de cantidad_gasto de todos los presupuestos (gamificación) -->
+            <div class="navbar__total-invertido">
+                Total Invertido: ${{ "{:,.0f}".format(total_invertido) }}
+            </div>
             <nav class="navbar__menu">
                 <a href="{{ url_for('index') }}" class="navbar__link">Inicio</a>
                 <a href="{{ url_for('presupuestos_lista') }}" class="navbar__link">Presupuesto</a>

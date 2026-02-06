@@ -75,9 +75,11 @@
             ? '<img src="' + escapeHtml(imgUrl) + '" alt="' + escapeHtml(data.concepto) + '" class="modal-detalle__img">'
             : '<div class="modal-detalle__noimg">Sin imagen</div>';
 
+        const esAdmin = data.es_admin === true;
         let comentariosHtml = (data.comentarios || []).map(function (c) {
             const fecha = c.fecha ? new Date(c.fecha).toLocaleDateString('es-MX') : '';
-            return '<div class="modal-comentario"><strong>' + escapeHtml(c.autor) + '</strong> <span class="modal-comentario__fecha">' + escapeHtml(fecha) + '</span><p>' + escapeHtml(c.contenido) + '</p></div>';
+            var eliminarBtn = esAdmin ? ' <button type="button" class="btn-comentario-eliminar btn-link btn-link--danger btn-sm" data-comentario-id="' + c.id + '" title="Eliminar">Eliminar</button>' : '';
+            return '<div class="modal-comentario" data-comentario-id="' + c.id + '"><strong>' + escapeHtml(c.autor) + '</strong> <span class="modal-comentario__fecha">' + escapeHtml(fecha) + '</span>' + eliminarBtn + '<p>' + escapeHtml(c.contenido) + '</p></div>';
         }).join('');
 
         return (
@@ -103,6 +105,7 @@
             '      <h3 class="modal-detalle__titulo">' + escapeHtml(data.concepto) + '</h3>' +
             '      <p class="modal-detalle__meta">' + escapeHtml(data.fecha) + ' · ' + escapeHtml(data.categoria) + '</p>' +
             '      <p class="modal-detalle__monto">$' + (data.monto != null ? Number(data.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '') + '</p>' +
+            (data.cantidad_gasto != null && data.cantidad_gasto > 0 ? '<p class="modal-detalle__gasto">Gasto: $' + Number(data.cantidad_gasto).toLocaleString('es-MX', { minimumFractionDigits: 0 }) + '</p>' : '') +
             '      <div class="modal-detalle__descripcion">' + escapeHtml(data.descripcion || 'Sin descripción.') + '</div>' +
             '    </div>' +
             '  </div>' +
@@ -138,27 +141,47 @@
                 .then(function (data) {
                     modalPlaceholder.innerHTML = renderModalContent(data);
 
-                    // Like
+                    var csrfToken = (document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content')) || '';
+                    function updateCounts(d) {
+                        var likeSpan = modalPlaceholder.querySelector('.btn-reaccion--like .btn-reaccion__count');
+                        var dislikeSpan = modalPlaceholder.querySelector('.btn-reaccion--dislike .btn-reaccion__count');
+                        if (likeSpan) likeSpan.textContent = d.likes;
+                        if (dislikeSpan) dislikeSpan.textContent = d.dislikes;
+                    }
+                    // Like (requiere login; un voto por usuario - tabla VotoPresupuesto)
                     modalPlaceholder.querySelectorAll('.btn-reaccion--like').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const pid = this.getAttribute('data-id');
-                            fetch('/api/presupuesto/' + pid + '/like', { method: 'POST', headers: { 'X-CSRFToken': (document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content')) || '' } })
-                                .then(function (r) { return r.json(); })
-                                .then(function (d) {
-                                    var span = btn.querySelector('.btn-reaccion__count');
-                                    if (span) span.textContent = d.likes;
-                                });
+                            fetch('/api/presupuesto/' + pid + '/like', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+                                .then(function (r) {
+                                    if (r.status === 401) { alert('Inicia sesión para votar.'); return null; }
+                                    return r.json();
+                                })
+                                .then(function (d) { if (d) updateCounts(d); });
                         });
                     });
                     // Dislike
                     modalPlaceholder.querySelectorAll('.btn-reaccion--dislike').forEach(function (btn) {
                         btn.addEventListener('click', function () {
                             const pid = this.getAttribute('data-id');
-                            fetch('/api/presupuesto/' + pid + '/dislike', { method: 'POST', headers: { 'X-CSRFToken': (document.querySelector('meta[name="csrf-token"]') && document.querySelector('meta[name="csrf-token"]').getAttribute('content')) || '' } })
+                            fetch('/api/presupuesto/' + pid + '/dislike', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+                                .then(function (r) {
+                                    if (r.status === 401) { alert('Inicia sesión para votar.'); return null; }
+                                    return r.json();
+                                })
+                                .then(function (d) { if (d) updateCounts(d); });
+                        });
+                    });
+                    // Eliminar comentario (solo Admin)
+                    modalPlaceholder.querySelectorAll('.btn-comentario-eliminar').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var cid = this.getAttribute('data-comentario-id');
+                            if (!cid || !confirm('¿Eliminar este comentario?')) return;
+                            fetch('/api/comentario/' + cid + '/eliminar', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
                                 .then(function (r) { return r.json(); })
-                                .then(function (d) {
-                                    var span = btn.querySelector('.btn-reaccion__count');
-                                    if (span) span.textContent = d.dislikes;
+                                .then(function () {
+                                    var div = modalPlaceholder.querySelector('.modal-comentario[data-comentario-id="' + cid + '"]');
+                                    if (div) div.remove();
                                 });
                         });
                     });
@@ -185,6 +208,7 @@
                                     if (list) {
                                         var div = document.createElement('div');
                                         div.className = 'modal-comentario';
+                                        div.setAttribute('data-comentario-id', c.id);
                                         div.innerHTML = '<strong>' + escapeHtml(c.autor) + '</strong> <span class="modal-comentario__fecha">' + escapeHtml(c.fecha ? new Date(c.fecha).toLocaleDateString('es-MX') : '') + '</span><p>' + escapeHtml(c.contenido) + '</p>';
                                         list.appendChild(div);
                                     }
@@ -204,7 +228,7 @@
     if (cards.length) {
         cards.forEach(function (card) {
             card.addEventListener('click', function (e) {
-                if (e.target.closest('.card-budget__edit-link')) return;
+                if (e.target.closest('.card-budget__edit-link') || e.target.closest('.card-budget__actions')) return;
                 var modal = document.getElementById('detalleModal');
                 if (!modal) return;
                 modal.setAttribute('data-current-id', card.getAttribute('data-id'));

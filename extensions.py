@@ -1,11 +1,13 @@
 """
-Extensiones de Flask (SQLAlchemy, Login) - evita importaciones circulares.
+Extensiones de Flask (SQLAlchemy, Login, Mail) - evita importaciones circulares.
 """
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, AnonymousUserMixin
+from flask_mail import Mail
 
 db = SQLAlchemy()
 login_manager = LoginManager()
+mail = Mail()
 
 
 class AnonymousUser(AnonymousUserMixin):

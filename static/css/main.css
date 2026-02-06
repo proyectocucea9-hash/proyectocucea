@@ -103,7 +103,15 @@ body {
     transition: font-size 0.3s ease;
 }
 
-/* Enlaces centrados y repartidos - Padding generoso para aspecto profesional */
+/* Total Invertido: suma de cantidad_gasto (gamificación), visible en Navbar */
+.navbar__total-invertido {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    padding: 0 1rem;
+    white-space: nowrap;
+}
+
 .navbar__menu {
     display: flex;
     align-items: center;
@@ -220,12 +228,31 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: url('https://images.unsplash.com/photo-1562774053-701939374585?w=1920&h=1080&fit=crop');
     background-size: cover;
     background-position: center;
     background-attachment: fixed; /* Parallax: fija al hacer scroll */
     z-index: -1;
     opacity: 0.4;
+    /* background-image se define por inline style desde BD (fondo_url) o por defecto en index */
+}
+
+/* Botón discreto para Admin: cambiar imagen de fondo del Index */
+.btn-fondo-editar {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 100;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    border-radius: 6px;
+    text-decoration: none;
+    opacity: 0.7;
+}
+.btn-fondo-editar:hover {
+    opacity: 1;
+    color: #fff;
 }
 
 .page-overlay {
@@ -539,6 +566,13 @@ body {
     border-radius: 20px;
     font-size: 0.75rem;
     color: var(--color-primary);
+}
+
+.card-budget__gasto {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin: 0 1rem 0.25rem;
 }
 
 /* Acciones Admin en card del carrusel: Editar + Borrar (ícono basura) */
@@ -907,6 +941,13 @@ body {
     color: var(--color-primary);
 }
 
+.project-card__gasto {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin: 0 1rem 0.25rem;
+}
+
 .project-card__title {
     margin: 0 1rem 0.5rem;
     font-size: 1.1rem;
@@ -998,6 +1039,13 @@ body {
     margin: 0 0 1rem;
 }
 
+.detalle-card__gasto {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 1rem;
+}
+
 .detalle-card__descripcion {
     margin: 0 0 1.5rem;
     line-height: 1.7;
@@ -1083,6 +1131,16 @@ body.modal-open-scroll-lock {
 
 .modal-md {
     max-width: 720px;
+}
+/* Modal responsive: ancho adecuado en pantallas chicas (celulares) */
+@media (max-width: 576px) {
+    .modal-md {
+        max-width: 100%;
+        margin: 0.5rem;
+    }
+    .modal-body--scrollable {
+        max-height: 60vh;
+    }
 }
 
 .modal-body--scrollable {
@@ -1236,6 +1294,10 @@ body.modal-open-scroll-lock {
 @media (max-width: 768px) {
     .modal-detalle__main {
         grid-template-columns: 1fr;
+    }
+    .navbar__total-invertido {
+        font-size: 0.75rem;
+        padding: 0 0.5rem;
     }
 }
 

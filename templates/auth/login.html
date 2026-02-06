@@ -11,14 +11,14 @@
 <div class="auth-container">
     <div class="auth-card">
         <h1>Iniciar sesión</h1>
-        <p class="auth-hint">Solo correos que terminen en <strong>@academicos.mx</strong> pueden iniciar sesión. Cualquier otro dominio (por ejemplo @alumnos.mx) está bloqueado.</p>
+        <p class="auth-hint">Solo correos que terminen en <strong>@alumnos.udg.mx</strong> pueden iniciar sesión.</p>
         
         <form method="POST" action="{{ url_for('auth_login') }}" class="auth-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="email">Correo electrónico</label>
                 <input type="email" id="email" name="email" required 
-                       placeholder="usuario@academicos.mx" 
+                       placeholder="usuario@alumnos.udg.mx" 
                        value="{{ request.form.get('email', '') }}">
             </div>
             <div class="form-group">

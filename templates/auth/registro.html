@@ -11,7 +11,7 @@
 <div class="auth-container">
     <div class="auth-card">
         <h1>Registro de administrador</h1>
-        <p class="auth-hint">Solo correos que terminen en <strong>@academicos.mx</strong> pueden registrarse. Otros dominios (por ejemplo @alumnos.mx) están bloqueados. Al registrarte tendrás permisos de administrador.</p>
+        <p class="auth-hint">Solo correos <strong>@alumnos.udg.mx</strong> pueden registrarse. Te enviaremos un código de 6 dígitos al correo para verificar tu identidad.</p>
         
         <form method="POST" action="{{ url_for('auth_registro') }}" class="auth-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -24,7 +24,7 @@
             <div class="form-group">
                 <label for="email">Correo electrónico</label>
                 <input type="email" id="email" name="email" required 
-                       placeholder="usuario@academicos.mx" 
+                       placeholder="usuario@alumnos.udg.mx" 
                        value="{{ request.form.get('email', '') }}">
             </div>
             <div class="form-group">

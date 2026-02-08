@@ -14,36 +14,6 @@
 document.addEventListener('DOMContentLoaded', function () {
 
     /* =========================================================================
-       NAVBAR - EFECTO DE REDIMENSIONAMIENTO AL HACER SCROLL
-       =========================================================================
-       Lógica:
-       - Estado inicial (arriba): Navbar más ancha con más padding vertical
-       - Al bajar la página: detectamos scroll > umbral y añadimos clase
-         navbar--scrolled que reduce altura y padding (CSS hace la transición)
-       - Al volver arriba: quitamos la clase y recupera tamaño original
-       - La transición suave se logra con CSS: transition: all 0.3s ease;
-       ========================================================================= */
-    const navbar = document.getElementById('main-navbar');
-    const scrollThreshold = 50; // Píxeles de scroll para activar el cambio
-
-    if (navbar) {
-        function updateNavbarScroll() {
-            if (window.scrollY > scrollThreshold) {
-                navbar.classList.add('navbar--scrolled');
-            } else {
-                navbar.classList.remove('navbar--scrolled');
-            }
-        }
-
-        // Ejecutar al cargar (por si la página ya tiene scroll)
-        updateNavbarScroll();
-
-        // Ejecutar cada vez que el usuario hace scroll
-        window.addEventListener('scroll', updateNavbarScroll, { passive: true });
-    }
-
-
-    /* =========================================================================
        CARRUSEL DE IMÁGENES - FRANJA 1 (Presentación)
        =========================================================================
        Lógica:
@@ -169,4 +139,115 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(() => alert.remove(), 300);
         }, 5000);
     });
+
+
+    /* =========================================================================
+       CHATBOT ROBOTSITO - Bienvenida → ícono flotante → ventana chat con FAQ
+       ========================================================================= */
+    const chatbotWelcome = document.getElementById('chatbot-welcome');
+    const chatbotToggle = document.getElementById('chatbot-toggle');
+    const chatbotPanel = document.getElementById('chatbot-panel');
+    const chatbotClose = document.getElementById('chatbot-close');
+    const chatbotMessages = document.getElementById('chatbot-messages');
+    const chatbotInput = document.getElementById('chatbot-input');
+    const chatbotSend = document.getElementById('chatbot-send');
+    const FAQ_RESPONSES = {
+        presupuesto: 'Para subir un presupuesto debes iniciar sesión con una cuenta de administrador. Luego ve a "Presupuesto" en el menú y haz clic en "Agregar". Completa el formulario con los datos del proyecto y guarda.',
+        superadmin: 'El Super Admin es un usuario con permisos especiales que puede gestionar a otros usuarios (dar de alta, editar roles, etc.). Solo hay uno o pocos Super Admins por seguridad. Accede desde "Gestionar Usuarios" en la barra de navegación.',
+        sede: 'En la página de Presupuesto verás filtros arriba de la lista. Usa el desplegable "Sede" para elegir la sede que desees y la lista se actualizará mostrando solo los presupuestos de esa sede.'
+    };
+    const WELCOME_DURATION_MS = 5000;
+    const BUBBLE_POP_MS = 350;
+    const VORTEX_MS = 600;
+
+    function appendBotMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'chatbot-msg chatbot-msg--bot';
+        div.innerHTML = '<span class="chatbot-msg__bubble">' + escapeHtml(text) + '</span>';
+        chatbotMessages.appendChild(div);
+        chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+    }
+
+    function appendUserMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'chatbot-msg chatbot-msg--user';
+        div.innerHTML = '<span class="chatbot-msg__bubble">' + escapeHtml(text) + '</span>';
+        chatbotMessages.appendChild(div);
+        chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+    }
+
+    function getFaqResponse(userText) {
+        const t = userText.toLowerCase().trim();
+        if (t.includes('presupuesto') && (t.includes('subir') || t.includes('agregar') || t.includes('cómo'))) return FAQ_RESPONSES.presupuesto;
+        if (t.includes('super admin') || t.includes('superadmin')) return FAQ_RESPONSES.superadmin;
+        if (t.includes('sede') && t.includes('filtrar')) return FAQ_RESPONSES.sede;
+        return null;
+    }
+
+    function answerFaq(faqKey) {
+        const question = {
+            presupuesto: '¿Cómo subir un presupuesto?',
+            superadmin: '¿Quién es el Super Admin?',
+            sede: '¿Cómo filtrar por sede?'
+        }[faqKey];
+        if (question) {
+            appendUserMessage(question);
+            appendBotMessage(FAQ_RESPONSES[faqKey] || 'No tengo esa información.');
+        }
+    }
+
+    const chatbotWidget = document.getElementById('chatbot-widget');
+    const chatbotBubble = document.getElementById('chatbot-bubble');
+    const chatbotRobotBig = document.getElementById('chatbot-robot-big');
+    if (chatbotWelcome && chatbotToggle && chatbotPanel && chatbotWidget) {
+        setTimeout(function () {
+            if (chatbotBubble) chatbotBubble.classList.add('chatbot-bubble--pop');
+            setTimeout(function () {
+                if (chatbotRobotBig) chatbotRobotBig.classList.add('chatbot-robot--vortex');
+                setTimeout(function () {
+                    if (chatbotRobotBig) chatbotRobotBig.classList.add('chatbot-robot--vortex-done');
+                    chatbotWelcome.classList.add('chatbot-welcome--hidden');
+                    chatbotToggle.classList.add('chatbot-toggle--visible');
+                }, VORTEX_MS);
+            }, BUBBLE_POP_MS);
+        }, WELCOME_DURATION_MS);
+
+        chatbotToggle.addEventListener('click', function () {
+            chatbotPanel.classList.add('chatbot-panel--open');
+            chatbotWidget.classList.add('chatbot-panel-open');
+            if (chatbotInput) chatbotInput.focus();
+        });
+
+        chatbotClose.addEventListener('click', function () {
+            chatbotPanel.classList.remove('chatbot-panel--open');
+            chatbotWidget.classList.remove('chatbot-panel-open');
+        });
+
+        document.querySelectorAll('.chatbot-faq-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const faq = this.getAttribute('data-faq');
+                if (faq && FAQ_RESPONSES[faq]) {
+                    answerFaq(faq);
+                }
+            });
+        });
+
+        function sendUserMessage() {
+            const text = (chatbotInput && chatbotInput.value) ? chatbotInput.value.trim() : '';
+            if (!text) return;
+            appendUserMessage(text);
+            chatbotInput.value = '';
+            const faq = getFaqResponse(text);
+            setTimeout(function () {
+                appendBotMessage(faq || 'No encontré una respuesta exacta. Prueba con las preguntas frecuentes o reformula tu pregunta.');
+            }, 400);
+        }
+
+        if (chatbotSend && chatbotInput) {
+            chatbotSend.addEventListener('click', sendUserMessage);
+            chatbotInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); sendUserMessage(); }
+            });
+        }
+    }
 });
